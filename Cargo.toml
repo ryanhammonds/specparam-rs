@@ -1,0 +1,15 @@
+[package]
+name = "specparam-rs"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ndarray = { version = "0.15.0", features = ["blas"] }
+blas-src = { version = "0.8", features = ["openblas"] }
+openblas-src = { version = "0.10", features = ["cblas", "system"] }
+finitediff = { version = "0.1.4", features = ["ndarray"]}
+argmin = { version = "0.7" }
+argmin-math = { version = "0.2", features = ["ndarray_latest-serde", "nalgebra_latest-serde"] }
+argmin_testfunctions = { version = "0.1.1" }
