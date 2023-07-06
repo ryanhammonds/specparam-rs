@@ -1,6 +1,6 @@
 // Spectral fitting
 use ndarray::{array, Array1, Array2, s};
-use crate::curves::{lorentzian, linear, peak};
+use crate::gen::{lorentzian, linear, peak};
 use crate::optimization::{fit_lorentzian, fit_linear};
 
 // Structures of parameters, internal settings, and results

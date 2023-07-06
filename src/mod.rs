@@ -1,4 +1,4 @@
 
 pub mod specparam;
 pub mod optimization;
-pub mod curves;
+pub mod gen;

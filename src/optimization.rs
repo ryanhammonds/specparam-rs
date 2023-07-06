@@ -8,7 +8,7 @@ use argmin::core::State;
 use ndarray::{Array1};
 use finitediff::FiniteDiff;
 
-use crate::curves::{lorentzian, linear};
+use crate::gen::{lorentzian, linear};
 
 
 // Lorentzian fitting

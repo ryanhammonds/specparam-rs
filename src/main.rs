@@ -2,11 +2,11 @@
 use std::time::Instant;
 use ndarray::{Array1};
 
-mod curves;
+mod gen;
 mod optimization;
 mod specparam;
 
-use curves::{lorentzian, linear, peak, noise};
+use gen::{lorentzian, linear, peak, noise};
 use specparam::SpecParam;
 
 fn run() {
@@ -21,7 +21,6 @@ fn run() {
 
     powers = (powers + sig_noise).mapv(|p| (10.0_f64).powf(p));
     powers = powers + peak(&freqs, 20.0, 20.0, 2.0);
-    println!("{:?}", powers);
 
     // Time fitting procedure
     println!("Lorentzian/Knee Results:");
