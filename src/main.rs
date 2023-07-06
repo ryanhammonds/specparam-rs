@@ -21,9 +21,6 @@ fn run() {
     powers = (powers + noise).mapv(|p| (10.0_f64).powf(p));
     powers = powers + peak(&freqs, 20.0, 20.0, 2.0);
 
-    // Initalize cost and params
-    let init_param : Array1<f64> = array![5.0, 2.0, 100.0];
-
     // Time fitting procedure
     let now = Instant::now();
 

@@ -1,10 +1,10 @@
+
 use ndarray::{array, Array1, Array2, Axis, stack, s};
 use ndarray_stats::{QuantileExt, Sort1dExt};
-
-
 use crate::curves::{lorentzian, peak};
 use crate::optimization::fit_lorentzian;
 
+// Structures of parameters, internal settings, and results
 pub struct SpecParam {
     pub peak_width_limits : (f64, f64),
     pub max_n_peaks : i64,
@@ -28,20 +28,17 @@ pub struct InternalSettings {
 pub struct Results {
     pub freqs : Array1<f64>,
     pub power_spectrum : Array1<f64>,
-    // pub freqs : Array1<f64>,
-    // pub freq_range : (f64, f64),
-    // pub freq_res : f64,
-    // pub power_spectrum : Array1<f64>,
     pub aperiodic_params_ : Array1<f64>,
     pub gaussian_params_ : Array2<f64>,
-    // pub peak_params_ : Array1<f64>,
-    // pub fooofed_spectrum_ : Array1<f64>,
-    // pub _spectrum_flat : Array1<f64>,
-    // pub _spectrum_peak_rm : Array1<f64>,
-    // pub _ap_fit : Array1<f64>,
-    // pub _peak_fit : Array1<f64>,
+    pub peak_params_ : Array2<f64>,
+    pub fooofed_spectrum_ : Array1<f64>,
+    pub _spectrum_flat : Array1<f64>,
+    pub _spectrum_peak_rm : Array1<f64>,
+    pub _ap_fit : Array1<f64>,
+    pub _peak_fit : Array1<f64>,
 }
 
+// Allows overwriting of default parameters
 impl Default for SpecParam {
     fn default() -> SpecParam {
         SpecParam {
@@ -69,13 +66,15 @@ impl Default for SpecParam {
     }
 }
 
+// Implmentation of model fitting
 impl SpecParam {
     pub fn new() -> SpecParam {
-        // Initalize with default parameters
+        // Initalizes with default parameters
         Default::default()
     }
 
     pub fn fit(&mut self, freqs : Array1<f64>, powers : Array1<f64>) -> Results {
+        // Internal settings & log powers
         self._reset_internal_settings();
         let powers_log : Array1<f64> = powers.mapv(|p| p.log10());
 
@@ -86,28 +85,35 @@ impl SpecParam {
 
         // Fit peaks
         let (gaussian_params_, _peak_fit) = self._fit_peaks(&freqs, &_spectrum_flat);
-        let _spectrum_peak_rm_log = &powers_log - &_peak_fit;
-        let _spectrum_peak_rm = _spectrum_peak_rm_log.mapv(|p| p.powf(10.0));
+        let _spectrum_peak_rm = &powers - &_peak_fit;
+        let _spectrum_peak_rm_log = _spectrum_peak_rm.mapv(|p| p.log10());
 
-        // todo: fix this
         // Final aperiodic fit
-        // let aperiodic_params_ = self._simple_ap_fit(&freqs, &_spectrum_peak_rm, &_spectrum_peak_rm_log);
-        // let _ap_fit = lorentzian(&freqs, aperiodic_params_[0], aperiodic_params_[1], aperiodic_params_[2]);
-        // let _spectrum_flat = &powers_log - &_ap_fit;
-        // let fooofed_spectrum_ = &_peak_fit + &_ap_fit;
+        let aperiodic_params_ = self._simple_ap_fit(&freqs, &_spectrum_peak_rm, &_spectrum_peak_rm_log);
+        let _ap_fit = lorentzian(&freqs, aperiodic_params_[0], aperiodic_params_[1], aperiodic_params_[2]);
+        let _spectrum_flat = &powers_log - &_ap_fit;
+        let fooofed_spectrum_ = &_peak_fit + &_ap_fit;
 
-        //println!("{:?}", powers_log);
-        //println!("{:?}", fooofed_spectrum_);
+        // Peak parameters
+        let peak_params_ = self._create_peak_params(&freqs, &gaussian_params_, &fooofed_spectrum_, &_ap_fit);
 
+        // Collect results into the struct
         Results {
             freqs : freqs,
             power_spectrum : powers,
             aperiodic_params_ : aperiodic_params_,
-            gaussian_params_ : gaussian_params_
+            gaussian_params_ : gaussian_params_,
+            peak_params_ : peak_params_,
+            fooofed_spectrum_ : fooofed_spectrum_,
+            _spectrum_flat : _spectrum_flat,
+            _spectrum_peak_rm : _spectrum_peak_rm_log,
+            _ap_fit : _ap_fit,
+            _peak_fit : _peak_fit
         }
     }
 
     fn _reset_internal_settings(&mut self) {
+        // Internal settings
         self._internal_settings._gauss_std_limits =
             (self.peak_width_limits.0 / 2.0, self.peak_width_limits.1 / 2.0);
     }
@@ -193,11 +199,10 @@ impl SpecParam {
 
         // Acutal max peaks is 100 since stackings ndarray's is a pain
         let mut guess : Array2<f64> = Array2::zeros((100, 3));
-        let mut guess_len : i64 = 0;
         let mut i_peak : i64 = 0;
         let mut flat_peaks : Array1<f64> = Array1::zeros(flat_iter.len());
 
-        while guess_len < self.max_n_peaks {
+        while i_peak < self.max_n_peaks {
 
             // Argmax of flattened powers
             let _flat_iter : Array1<f64> = flat_iter - &flat_peaks;
@@ -286,5 +291,27 @@ impl SpecParam {
             i_peak = i_peak + 1;
         }
         (guess.slice(s![..(i_peak) as usize, 0..3]).to_owned(), flat_peaks)
+    }
+
+    fn _create_peak_params(&self, freqs : &Array1<f64>, gaus_params: &Array2<f64>, fooofed_spectrum_: &Array1<f64>, _ap_fit: &Array1<f64>) -> Array2<f64> {
+        let mut peak_params : Array2<f64> = Array2::zeros((gaus_params.shape()[0], 3));
+        for i in 0..gaus_params.shape()[0] {
+
+            let cf : f64 = gaus_params[[i, 0]];
+            // Argmin
+            let mut min_ind : usize = 0;
+            let mut min_diff : f64 = f64::MIN;
+            for j in 0..freqs.len() {
+                let _diff : f64 = (freqs[j] - cf).abs();
+                if _diff < min_diff {
+                    min_diff = _diff;
+                    min_ind = j;
+                }
+            }
+            peak_params[[i, 0]] = cf;
+            peak_params[[i, 1]] = fooofed_spectrum_[min_ind as usize] - _ap_fit[min_ind as usize];
+            peak_params[[i, 2]] = gaus_params[[i, 2]] * 2.0;
+        }
+        peak_params
     }
 }
