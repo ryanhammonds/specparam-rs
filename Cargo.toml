@@ -3,8 +3,6 @@ name = "specparam-rs"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 ndarray = { version = "0.15.0", features = ["blas"] }
 ndarray-stats = { version = "0.5.1" }
@@ -16,4 +14,12 @@ argmin-math = { version = "0.2", features = ["ndarray_latest-serde", "nalgebra_l
 argmin_testfunctions = { version = "0.1.1" }
 rand = { version = "0.8.5" }
 rand_distr = { version = "0.4.3" }
+pyo3 = { version = "0.19.1" }
+numpy = { version = "0.19" }
 
+[package.metadata.maturin]
+name = "specparam"
+
+[lib]
+name = "specparam"
+crate-type = ["cdylib"]

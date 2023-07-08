@@ -1,7 +1,8 @@
 // Spectral fitting
+use std::iter::FromIterator;
 use ndarray::{array, Array1, Array2, s};
-use crate::gen::{lorentzian, linear, peak};
-use crate::optimization::{fit_lorentzian, fit_linear};
+use crate::gen::{lorentzian, linear, peak, noise};
+use crate::optimizers::{fit_lorentzian, fit_linear, fit_gaussian};
 
 // Structures of parameters, internal settings, and results
 pub struct SpecParam {
@@ -306,6 +307,7 @@ impl SpecParam {
 
             // Collect guess parameters and subtract this guess gaussian from the data
             let _guess : Array1<f64> = array![guess_freq, guess_height, guess_std];
+
             for i in 0..3{
                 guess[[i_peak as usize, i]] = _guess[i];
             }
@@ -315,7 +317,29 @@ impl SpecParam {
             flat_peaks = flat_peaks + peak_gauss;
             i_peak = i_peak + 1;
         }
-        (guess.slice(s![..(i_peak) as usize, 0..3]).to_owned(), flat_peaks)
+
+        //println!("No fitting peaks.");
+        //let mut peak_fit : Array1<f64> = Array1::zeros(freqs.len());
+        //(guess, peak_fit)
+
+        // Fit the peaks
+        let guess_flat = Array1::from_iter(guess.iter().cloned());
+        let guess_flat = guess_flat.slice(s![..((i_peak) * 3) as usize]).to_owned();
+
+        let peak_params = fit_gaussian(&freqs, &flat_iter, &guess_flat).unwrap();
+        let n_gaussian : i64 = peak_params.len() as i64 / 3;
+
+        let params2 = Array2::from_shape_vec((n_gaussian as usize, 3), peak_params.to_vec()).unwrap();
+
+        let mut peak_fit : Array1<f64> = Array1::zeros(freqs.len());
+
+        for i in 0..i_peak{
+            let peak_gauss : Array1<f64> =
+                peak(&freqs, params2[[i as usize, 0]], params2[[i as usize, 1]], params2[[i as usize, 2]]);
+            peak_fit = peak_fit + peak_gauss;
+        }
+        (params2, peak_fit)
+
     }
 
     fn _create_peak_params(&self, freqs : &Array1<f64>, gaus_params: &Array2<f64>, powers_log_fit: &Array1<f64>, _ap_fit: &Array1<f64>) -> Array2<f64> {

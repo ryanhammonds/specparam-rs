@@ -1,4 +1,4 @@
 
 pub mod specparam;
-pub mod optimization;
+pub mod optimizers;
 pub mod gen;

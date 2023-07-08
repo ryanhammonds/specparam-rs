@@ -3,13 +3,13 @@ use std::time::Instant;
 use ndarray::{Array1};
 
 mod gen;
-mod optimization;
+mod optimizers;
 mod specparam;
 
 use gen::{lorentzian, linear, peak, noise};
 use specparam::SpecParam;
 
-fn run() {
+fn main() {
 
     // Lorentzian Model
     // Create frequencies
@@ -83,7 +83,3 @@ fn run() {
     println!("R^2: {:?}", sp.compute_rsq(&results.powers_log, &results.powers_log_fit));
 }
 
-
-fn main() {
-    run()
-}
