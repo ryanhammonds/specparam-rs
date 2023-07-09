@@ -37,7 +37,7 @@ struct Lorentzian {
 
 pub fn lorentzian_loss(freqs: &Array1<f64>, powers: &Array1<f64>, fk: f64, x: f64, b: f64) -> f64 {
     let y_pred = lorentzian(&freqs, fk, x, b);
-    (y_pred - powers).mapv(|p| p.powf(2.0)).sum() / freqs.len() as f64
+    (y_pred - powers).map(|p| p.powi(2)).sum() / freqs.len() as f64
 }
 
 impl CostFunction for Lorentzian {
@@ -82,7 +82,7 @@ struct Linear {
 
 pub fn linear_loss(freqs: &Array1<f64>, powers: &Array1<f64>, x: f64, b: f64) -> f64 {
     let y_pred = linear(&freqs, x, b);
-    (y_pred - powers).mapv(|p| p.powf(2.0)).sum() / freqs.len() as f64
+    (y_pred - powers).map(|p| p.powi(2)).sum() / freqs.len() as f64
 }
 
 impl CostFunction for Linear {
@@ -128,27 +128,22 @@ struct Gaussian {
 pub fn gaussian_loss(
     freqs: &Array1<f64>,
     powers: &Array1<f64>,
-    param: Array1<f64>,
+    param: &Array1<f64>,
 ) -> f64 {
     let n_gaussian : i64 = param.len() as i64 / 3;
-    let param2 = Array2::from_shape_vec((n_gaussian as usize, 3), param.to_vec()).unwrap();
     let mut y_pred : Array1<f64> = Array1::zeros(freqs.len());
     for i in 0..n_gaussian{
-        let ctr : f64 = param2[[i as usize, 0]];
-        let hgt : f64 = param2[[i as usize, 1]];
-        let wid : f64 = param2[[i as usize, 2]];
-        y_pred = y_pred + peak(&freqs, ctr, hgt, wid);
+        let j : usize = (i * 3) as usize;
+        y_pred = y_pred + peak(&freqs, param[j], param[j+1], param[j+2]);
     }
-    let loss = (y_pred - powers).mapv(|p| p.powf(2.0)).sum() / freqs.len() as f64;
-    loss
+    (y_pred - powers).map(|p| p.powi(2)).sum() / freqs.len() as f64
 }
 
 impl CostFunction for Gaussian {
     type Param = Array1<f64>;
     type Output = f64;
     fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
-        let loss = gaussian_loss(&self.freqs, &self.powers_true, param.clone());
-        Ok(loss)
+        Ok(gaussian_loss(&self.freqs, &self.powers_true, param))
     }
 }
 
@@ -156,7 +151,6 @@ impl Gradient for Gaussian {
     type Param =Array1<f64>;
     type Gradient = Array1<f64>;
     fn gradient(&self, param: &Self::Param) -> Result<Self::Gradient, Error> {
-        let grad = (*param).forward_diff(&|p| gaussian_loss(&self.freqs, &self.powers_true, p.clone()));
-        Ok(grad)
+        Ok((*param).forward_diff(&|p| gaussian_loss(&self.freqs, &self.powers_true, p)))
     }
 }

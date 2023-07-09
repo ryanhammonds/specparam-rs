@@ -8,18 +8,18 @@ use rand_distr::{Normal, Distribution};
 pub fn lorentzian(f: &Array1<f64>, fk: f64, x: f64, b: f64) -> Array1<f64> {
     let base : f64 = (x * fk.log10()) + b.log10();
     let fkx : f64 = fk.powf(x);
-    base - (fkx + f.mapv(|f| f.powf(x))).mapv(|p| p.log10())
+    base - (fkx + f.map(|f| f.powf(x))).map(|p| p.log10())
 }
 
 // Linear, 1/f (log10)
 pub fn linear(f: &Array1<f64>, x: f64, b: f64) -> Array1<f64> {
-    f.mapv(|f| b - (f.powf(x)).log10())
+    f.map(|f| b - (f.powf(x)).log10())
 }
 
 // Gaussian peaks (log10)
 pub fn peak(f: &Array1<f64>, ctr : f64, hgt : f64, wid : f64) -> Array1<f64> {
-    let denom = 2.0*wid.powf(2.0);
-    hgt * (f).mapv(|f| E.powf(-(f-ctr).powf(2.0) / denom))
+    let wpow : f64 = wid.powi(2);
+    hgt * (f).map(|f| E.powf(-(f-ctr).powi(2) / (wpow)))
 }
 
 pub fn noise(f: &Array1<f64>, scale: f64) -> Array1<f64> {

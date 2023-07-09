@@ -75,7 +75,7 @@ impl SpecParam {
     pub fn fit(&mut self, freqs : &Array1<f64>, powers : &Array1<f64>) -> Results {
         // Internal settings & log powers
         self._reset_internal_settings();
-        let powers_log : Array1<f64> = powers.clone().mapv(|p| p.log10());
+        let powers_log : Array1<f64> = powers.map(|p| p.log10());
 
         // Fit initial aperiodic
         let aperiodic_params_ = self._robust_ap_fit(&freqs, &powers, &powers_log);
@@ -92,7 +92,7 @@ impl SpecParam {
         // Fit peaks
         let (gaussian_params_, _peak_fit) = self._fit_peaks(&freqs, &_spectrum_flat);
         let _spectrum_peak_rm_log = &powers_log - &_peak_fit;
-        let _spectrum_peak_rm = _spectrum_peak_rm_log.mapv(|p| (10.0_f64).powf(p));
+        let _spectrum_peak_rm = _spectrum_peak_rm_log.map(|p| (10.0_f64).powf(*p));
 
         // Final aperiodic fit
         let aperiodic_params_ = self._simple_ap_fit(&freqs, &_spectrum_peak_rm, &_spectrum_peak_rm_log);
@@ -107,7 +107,7 @@ impl SpecParam {
         let powers_log_fit = &_peak_fit + &_ap_fit;
 
         // Peak parameters
-        let peak_params_ = self._create_peak_params(&freqs, &gaussian_params_, &powers_log_fit, &_ap_fit);
+        let peak_params_ : Array2<f64> = self._create_peak_params(&freqs, &gaussian_params_, &powers_log_fit, &_ap_fit);
 
         // Collect results into the struct
         Results {
@@ -157,7 +157,7 @@ impl SpecParam {
         let perc_thresh : f64 = flat_spec_v[ind];
 
         // Mask frequency and power arrays
-        let perc_mask = flat_spec.mapv(|p| p <= perc_thresh);
+        let perc_mask = flat_spec.map(|p| p <= &perc_thresh);
 
         let mask_size : usize = perc_mask.iter().filter(|&x| *x).count();
 
@@ -311,15 +311,15 @@ impl SpecParam {
                 guess[[i_peak as usize, i]] = _guess[i];
             }
 
-            let peak_gauss : Array1<f64> = peak(&freqs, guess_freq, guess_height, guess_std);
+            let peak_gauss : Array1<f64> = peak(&freqs, guess_freq, guess_height, guess_std*2.0);
 
             flat_peaks = flat_peaks + peak_gauss;
             i_peak = i_peak + 1;
         }
+
         // Fit the peaks
         let guess_flat = Array1::from_iter(guess.iter().cloned());
         let guess_flat = guess_flat.slice(s![..((i_peak) * 3) as usize]).to_owned();
-
         let peak_params = fit_gaussian(&freqs, &flat_iter, &guess_flat).unwrap();
         let n_gaussian : i64 = peak_params.len() as i64 / 3;
 
@@ -339,11 +339,10 @@ impl SpecParam {
     fn _create_peak_params(&self, freqs : &Array1<f64>, gaus_params: &Array2<f64>, powers_log_fit: &Array1<f64>, _ap_fit: &Array1<f64>) -> Array2<f64> {
         let mut peak_params : Array2<f64> = Array2::zeros((gaus_params.shape()[0], 3));
         for i in 0..gaus_params.shape()[0] {
-
             let cf : f64 = gaus_params[[i, 0]];
             // Argmin
             let mut min_ind : usize = 0;
-            let mut min_diff : f64 = f64::MIN;
+            let mut min_diff : f64 = f64::MAX;
             for j in 0..freqs.len() {
                 let _diff : f64 = (freqs[j] - cf).abs();
                 if _diff < min_diff {
@@ -353,15 +352,16 @@ impl SpecParam {
             }
             peak_params[[i, 0]] = cf;
             peak_params[[i, 1]] = powers_log_fit[min_ind as usize] - _ap_fit[min_ind as usize];
-            peak_params[[i, 2]] = gaus_params[[i, 2]] * 2.0;
+            peak_params[[i, 2]] = gaus_params[[i, 2]];
         }
+
         peak_params
     }
 
     pub fn compute_error(&self, powers : &Array1<f64>, powers_fit : &Array1<f64>) -> f64 {
         let mut error : f64 = 0.0;
         for i in 0..powers.len() {
-            error = error + (powers[i] - powers_fit[i]).powf(2.0);
+            error = error + (powers[i] - powers_fit[i]).powi(2);
         }
         error / powers.len() as f64
     }
@@ -369,7 +369,7 @@ impl SpecParam {
     pub fn compute_rsq(&self, powers : &Array1<f64>, powers_fit : &Array1<f64>) -> f64 {
         let mut sse : f64 = 0.0;
         for i in 0..powers.len() {
-            sse = sse + (powers[i] - powers_fit[i]).powf(2.0);
+            sse = sse + (powers[i] - powers_fit[i]).powi(2);
         }
         let tse = (powers.len() - 1) as f64 * powers.var(1.0);
         1.0 - (sse / tse)
