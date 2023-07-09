@@ -13,13 +13,12 @@ pub fn lorentzian(f: &Array1<f64>, fk: f64, x: f64, b: f64) -> Array1<f64> {
 
 // Linear, 1/f (log10)
 pub fn linear(f: &Array1<f64>, x: f64, b: f64) -> Array1<f64> {
-    f.map(|f| b - (f.powf(x)).log10())
+    f.map(|f| b - (x * (f).log10()))
 }
 
 // Gaussian peaks (log10)
 pub fn peak(f: &Array1<f64>, ctr : f64, hgt : f64, wid : f64) -> Array1<f64> {
-    let wpow : f64 = wid.powi(2);
-    hgt * (f).map(|f| E.powf(-(f-ctr).powi(2) / (wpow)))
+    hgt * (f).map(|f| E.powf(-(f-ctr).powi(2) / wid.powi(2)))
 }
 
 pub fn noise(f: &Array1<f64>, scale: f64) -> Array1<f64> {

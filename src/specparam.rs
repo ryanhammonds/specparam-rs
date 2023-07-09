@@ -225,25 +225,24 @@ impl SpecParam {
         // Acutal max peaks is 100 since stackings ndarray's is a pain
         let mut guess : Array2<f64> = Array2::zeros((100, 3));
         let mut i_peak : i64 = 0;
-        let mut flat_peaks : Array1<f64> = Array1::zeros(flat_iter.len());
-
+        let mut _flat_iter : Array1<f64> = flat_iter.clone();
         while i_peak < self.max_n_peaks {
 
             // Argmax of flattened powers
-            let _flat_iter : Array1<f64> = flat_iter - &flat_peaks;
-            let mut max_val : f64 = f64::MIN;
+            let mut max_height : f64 = f64::MIN;
             let mut max_ind : usize = 0;
 
             for i in 0.._flat_iter.len() {
-                if _flat_iter[i] > max_val {
-                    max_val = flat_iter[i];
+                if _flat_iter[i] > max_height {
+                    max_height = _flat_iter[i];
                     max_ind = i;
                 }
             }
-            let max_height : f64 = _flat_iter[max_ind];
-
             // Stoping criteria
             if max_height <= self.peak_threshold * _flat_iter.std(0.0) {
+                println!("{:?}", max_height);
+                println!("{:?}", self.peak_threshold * _flat_iter.std(0.0));
+                println!("Peak height below threshold");
                 break;
             }
 
@@ -305,22 +304,19 @@ impl SpecParam {
             };
 
             // Collect guess parameters and subtract this guess gaussian from the data
-            let _guess : Array1<f64> = array![guess_freq, guess_height, guess_std];
+            let _i_peak = i_peak as usize;
+            guess[[_i_peak, 0]] = guess_freq;
+            guess[[_i_peak, 1]] = guess_height;
+            guess[[_i_peak, 2]] = guess_std;
 
-            for i in 0..3{
-                guess[[i_peak as usize, i]] = _guess[i];
-            }
-
-            let peak_gauss : Array1<f64> = peak(&freqs, guess_freq, guess_height, guess_std*2.0);
-
-            flat_peaks = flat_peaks + peak_gauss;
+            _flat_iter = _flat_iter - peak(&freqs, guess_freq, guess_height, guess_std);
             i_peak = i_peak + 1;
         }
-
         // Fit the peaks
         let guess_flat = Array1::from_iter(guess.iter().cloned());
         let guess_flat = guess_flat.slice(s![..((i_peak) * 3) as usize]).to_owned();
-        let peak_params = fit_gaussian(&freqs, &flat_iter, &guess_flat).unwrap();
+
+        let peak_params = fit_gaussian(&freqs, &flat_iter, guess_flat).unwrap();
         let n_gaussian : i64 = peak_params.len() as i64 / 3;
 
         let params2 = Array2::from_shape_vec((n_gaussian as usize, 3), peak_params.to_vec()).unwrap();
