@@ -7,7 +7,6 @@ use gen::{lorentzian};
 use specparam::{SpecParam as SpecParamRS, Results as ResultsRS};
 
 use pyo3::prelude::*;
-use pyo3::types::PyType;
 
 use numpy::{IntoPyArray, PyArray1, PyArray2};
 use ndarray::{Array1, Array2};
@@ -117,7 +116,7 @@ impl SpecParam {
         &mut self,
         freqs: &'a PyArray1<f64>,
         powers: &'a PyArray1<f64>
-    ) -> Results {
+    )  -> Results {
         let f = unsafe { freqs.as_array() };
         let p = unsafe { powers.as_array() };
 

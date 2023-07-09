@@ -5,7 +5,7 @@ use argmin::core::{CostFunction, Error, Executor, Gradient};
 use argmin::solver::linesearch::MoreThuenteLineSearch;
 use argmin::solver::quasinewton::LBFGS;
 use argmin::core::State;
-use ndarray::{Array1, Array2, Axis, s};
+use ndarray::{Array1, Array2};
 use finitediff::FiniteDiff;
 
 use crate::gen::{lorentzian, linear, peak};
@@ -19,7 +19,7 @@ pub fn fit_lorentzian(freqs : &Array1<f64>, powers : &Array1<f64>, init_param : 
 
     let solver = LBFGS::new(linesearch, 7)
         .with_tolerance_grad(1e-6)?
-        .with_tolerance_cost(1e-6)?;
+        .with_tolerance_cost(1e-9)?;
 
     let res = Executor::new(cost, solver)
         .configure(|state| state.param(init_param.clone()).max_iters(100))
@@ -63,8 +63,8 @@ pub fn fit_linear(freqs : &Array1<f64>, powers : &Array1<f64>, init_param : &Arr
     let linesearch = MoreThuenteLineSearch::new();//.with_c(1e-4, 0.9)?;
 
     let solver = LBFGS::new(linesearch, 7)
-        .with_tolerance_grad(1e-4)?
-        .with_tolerance_cost(1e-6)?;
+        .with_tolerance_grad(1e-6)?
+        .with_tolerance_cost(1e-9)?;
 
     let res = Executor::new(cost, solver)
         .configure(|state| state.param(init_param.clone()).max_iters(100))
@@ -108,8 +108,8 @@ pub fn fit_gaussian(freqs : &Array1<f64>, powers : &Array1<f64>, init_param : &A
     let linesearch = MoreThuenteLineSearch::new();//.with_c(1e-4, 0.9)?;
 
     let solver = LBFGS::new(linesearch, 7)
-        .with_tolerance_grad(1e-4)?
-        .with_tolerance_cost(1e-6)?;
+        .with_tolerance_grad(1e-6)?
+        .with_tolerance_cost(1e-9)?;
 
     let res = Executor::new(cost, solver)
         .configure(|state| state.param(init_param.clone()).max_iters(100))
@@ -131,7 +131,7 @@ pub fn gaussian_loss(
     param: Array1<f64>,
 ) -> f64 {
     let n_gaussian : i64 = param.len() as i64 / 3;
-    let mut param2 = Array2::from_shape_vec((n_gaussian as usize, 3), param.to_vec()).unwrap();
+    let param2 = Array2::from_shape_vec((n_gaussian as usize, 3), param.to_vec()).unwrap();
     let mut y_pred : Array1<f64> = Array1::zeros(freqs.len());
     for i in 0..n_gaussian{
         let ctr : f64 = param2[[i as usize, 0]];
@@ -155,7 +155,7 @@ impl CostFunction for Gaussian {
 impl Gradient for Gaussian {
     type Param =Array1<f64>;
     type Gradient = Array1<f64>;
-    fn gradient(&self, mut param: &Self::Param) -> Result<Self::Gradient, Error> {
+    fn gradient(&self, param: &Self::Param) -> Result<Self::Gradient, Error> {
         let grad = (*param).forward_diff(&|p| gaussian_loss(&self.freqs, &self.powers_true, p.clone()));
         Ok(grad)
     }

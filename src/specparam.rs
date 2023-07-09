@@ -1,5 +1,4 @@
 // Spectral fitting
-use std::iter::FromIterator;
 use ndarray::{array, Array1, Array2, s};
 use crate::gen::{lorentzian, linear, peak, noise};
 use crate::optimizers::{fit_lorentzian, fit_linear, fit_gaussian};
@@ -317,11 +316,6 @@ impl SpecParam {
             flat_peaks = flat_peaks + peak_gauss;
             i_peak = i_peak + 1;
         }
-
-        //println!("No fitting peaks.");
-        //let mut peak_fit : Array1<f64> = Array1::zeros(freqs.len());
-        //(guess, peak_fit)
-
         // Fit the peaks
         let guess_flat = Array1::from_iter(guess.iter().cloned());
         let guess_flat = guess_flat.slice(s![..((i_peak) * 3) as usize]).to_owned();
@@ -374,7 +368,6 @@ impl SpecParam {
 
     pub fn compute_rsq(&self, powers : &Array1<f64>, powers_fit : &Array1<f64>) -> f64 {
         let mut sse : f64 = 0.0;
-        let mut tse : f64 = 0.0;
         for i in 0..powers.len() {
             sse = sse + (powers[i] - powers_fit[i]).powf(2.0);
         }
