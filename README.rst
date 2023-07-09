@@ -11,7 +11,32 @@ the python implementation, depending on simulation parameters.
 
 Quickstart
 ----------
-In ``main.rs``:
+
+Install Rust
+
+.. code-block:: bash
+
+    brew install rust
+
+Python bindings via PyO3:
+
+.. code-block:: bash
+
+    git clone git@github.com:ryanhammonds/specparam-rs.git
+    cd specparam-rs
+
+    pip install maturin
+
+    maturin develop --release
+
+.. code-block:: python
+
+    from specparam import SpecParam
+    sp = SpecParam(max_n_peaks=5, aperiodic_mode='linear')
+    res = sp.fit(freqs, powers)
+
+
+Or, using pure Rust:
 
 .. code-block:: rust
 
@@ -50,17 +75,3 @@ And then to excute from a shell:
 .. code-block:: bash
 
     cargo run --release
-
-
-Dependencies
-------------
-
-- ndarray
-- ndarray-stats
-- blas-src
-- openblas-src
-- finitediff
-- argmin
-- argmin-math
-- rand
-- rand_distr
