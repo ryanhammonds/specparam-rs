@@ -5,10 +5,19 @@ use rand;
 use rand_distr::{Normal, Distribution};
 
 // Lorentzian (log10)
-pub fn lorentzian(f: &Array1<f64>, fk: f64, x: f64, b: f64) -> Array1<f64> {
+pub fn lorentzian(f: &Array1<f64>, mut fk: f64, mut x: f64, mut b: f64) -> Array1<f64> {
+    if fk <= 0.0 {
+        fk = 1e-6;
+    }
+    if x <= 0.0 {
+        x = 1e-6;
+    }
+    if b <= 0.0 {
+        b = 1e-6;
+    }
     let base : f64 = (x * fk.log10()) + b.log10();
     let fkx : f64 = fk.powf(x);
-    base - (fkx + f.map(|f| f.powf(x))).map(|p| p.log10())
+    base - f.map(|f| (fkx + f.powf(x)).log10())
 }
 
 // Linear, 1/f (log10)
