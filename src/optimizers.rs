@@ -2,7 +2,7 @@
 extern crate blas_src;
 use argmin::core::observers::{ObserverMode, SlogLogger};
 use argmin::core::{CostFunction, Error, Executor, Gradient};
-use argmin::solver::linesearch::MoreThuenteLineSearch;
+use argmin::solver::linesearch::{condition::ArmijoCondition, BacktrackingLineSearch};
 use argmin::solver::quasinewton::LBFGS;
 use argmin::core::State;
 use ndarray::{Array1, Array2};
@@ -11,20 +11,20 @@ use finitediff::FiniteDiff;
 use crate::gen::{lorentzian, linear, peak};
 
 
-
-use argmin::solver::linesearch::{condition::ArmijoCondition, BacktrackingLineSearch};
-use argmin::solver::brent::BrentOpt;
-use argmin::solver::quasinewton::SR1;
-
 // Lorentzian fitting
-pub fn fit_lorentzian(freqs : &Array1<f64>, powers : &Array1<f64>, init_param : &Array1<f64>) -> Result<Array1<f64>, Error> {
+pub fn fit_lorentzian(
+        freqs : &Array1<f64>,
+        powers : &Array1<f64>,
+        init_param : &Array1<f64>,
+        ctol : f64
+    ) -> Result<Array1<f64>, Error> {
 
     let cost = Lorentzian{freqs: freqs.clone(), powers_true: powers.clone()};
-    let linesearch = MoreThuenteLineSearch::new();//.with_c(1e-4, 0.9)?;
+    let linesearch = BacktrackingLineSearch::new(ArmijoCondition::new(0.0001)?).rho(0.9)?;
 
-    let solver = LBFGS::new(linesearch, 8)
+    let solver = LBFGS::new(linesearch, 10)
         .with_tolerance_grad(1e-3)?
-        .with_tolerance_cost(1e-6)?;
+        .with_tolerance_cost(ctol)?;
 
     let res = Executor::new(cost, solver)
         .configure(|state| state.param(init_param.clone()).max_iters(100))
@@ -41,8 +41,11 @@ struct Lorentzian {
 }
 
 pub fn lorentzian_loss(freqs: &Array1<f64>, powers: &Array1<f64>, fk: f64, x: f64, b: f64) -> f64 {
-    let y_pred = lorentzian(&freqs, fk, x, b);
-    (y_pred - powers).map(|p| p.powi(2)).mean().unwrap()
+    //(lorentzian(&freqs, fk, x, b) - powers).map(|p| p.powi(2)).mean().unwrap()
+    // Pseudo-Huber loss
+    let delta : f64 = 1.0;
+    let delta_pow2 : f64 = delta.powi(2);
+    (lorentzian(&freqs, fk, x, b) - powers).map(|p| delta_pow2 * ((1.0 + (p/delta).powi(2)).sqrt() - 1.0)).mean().unwrap()
 }
 
 impl CostFunction for Lorentzian {
@@ -86,7 +89,11 @@ struct Linear {
 }
 
 pub fn linear_loss(freqs: &Array1<f64>, powers: &Array1<f64>, x: f64, b: f64) -> f64 {
-    (linear(&freqs, x, b) - powers).map(|p| p.powi(2)).mean().unwrap()
+    //(linear(&freqs, x, b) - powers).map(|p| p.powi(2)).mean().unwrap()
+    // Pseudo-Huber loss
+    let delta : f64 = 1.0;
+    let delta_pow2 : f64 = delta.powi(2);
+    (linear(&freqs, x, b) - powers).map(|p| delta_pow2 * ((1.0 + (p/delta).powi(2)).sqrt() - 1.0)).mean().unwrap()
 }
 
 impl CostFunction for Linear {
