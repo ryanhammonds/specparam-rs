@@ -17,7 +17,7 @@ pub struct SpecParam {
 pub struct InternalSettings {
     _ap_percentile_thresh : f64,
     _ap_guess : (f64, f64, f64),
-    _ap_bounds : ((f64, f64, f64), (f64, f64, f64)),
+    _ap_bounds : (Array1<f64>, Array1<f64>),
     _bw_std_edge : f64,
     _gauss_overlap_thresh : f64,
     _cf_bound : f64,
@@ -50,10 +50,11 @@ impl Default for SpecParam {
             // Private
             _internal_settings : InternalSettings {
                 _ap_percentile_thresh : 0.025,
-                _ap_guess : (0.0, 10.0, 2.0),
+                _ap_guess : (1.0, 10.0, 2.0),
                 _ap_bounds : (
-                    (f64::MIN, f64::MIN, f64::MIN),
-                    (f64::MAX, f64::MAX, f64::MAX)
+                    array![1e-6, 1e-6, 1e-6],
+                    array![f64::MAX, f64::MAX, f64::MAX]
+
                 ),
                 _bw_std_edge : 1.0,
                 _gauss_overlap_thresh : 0.75,
@@ -73,12 +74,11 @@ impl SpecParam {
     }
 
     pub fn fit(&mut self, freqs : &Array1<f64>, powers : &Array1<f64>) -> Results {
-        // Internal settings & log powers
-        self._reset_internal_settings();
+
         let powers_log : Array1<f64> = powers.map(|p| p.log10());
 
         // Fit initial aperiodic
-        let aperiodic_params_ = self._robust_ap_fit(&freqs, &powers, &powers_log);
+        let (aperiodic_params_, fit_peaks) = self._robust_ap_fit(&freqs, &powers, &powers_log);
 
         let _ap_fit : Array1<f64> =
             if self.aperiodic_mode == "linear" {
@@ -87,15 +87,29 @@ impl SpecParam {
                 lorentzian(&freqs, aperiodic_params_[0], aperiodic_params_[1], aperiodic_params_[2])
             };
 
-        let _spectrum_flat = &powers_log -& _ap_fit;
+        let _spectrum_flat = &powers_log - &_ap_fit;
 
         // Fit peaks
-        let (gaussian_params_, _peak_fit) = self._fit_peaks(&freqs, &_spectrum_flat);
+        let (gaussian_params_, _peak_fit) =
+            if fit_peaks ==  true {
+                self._fit_peaks(&freqs, &_spectrum_flat)
+            } else{
+                let gaussian_params_ : Array2<f64> = Array2::zeros((0, 3));
+                let _peak_fit : Array1<f64> = Array1::zeros(freqs.len());
+                (gaussian_params_, _peak_fit)
+            };
+
         let _spectrum_peak_rm_log = &powers_log - &_peak_fit;
         let _spectrum_peak_rm = _spectrum_peak_rm_log.map(|p| (10.0_f64).powf(*p));
 
         // Final aperiodic fit
-        let aperiodic_params_ = self._simple_ap_fit(&freqs, &_spectrum_peak_rm, &_spectrum_peak_rm_log);
+        let aperiodic_params_ = self._simple_ap_fit(
+            &freqs,
+            &_spectrum_peak_rm,
+            &_spectrum_peak_rm_log,
+            1e-9,
+            -1.0
+        );
 
         let _ap_fit : Array1<f64> =
             if self.aperiodic_mode == "linear" {
@@ -104,10 +118,16 @@ impl SpecParam {
                 lorentzian(&freqs, aperiodic_params_[0], aperiodic_params_[1], aperiodic_params_[2])
             };
         let _spectrum_flat = &powers_log - &_ap_fit;
+
         let powers_log_fit = &_peak_fit + &_ap_fit;
 
         // Peak parameters
-        let peak_params_ : Array2<f64> = self._create_peak_params(&freqs, &gaussian_params_, &powers_log_fit, &_ap_fit);
+        let peak_params_ : Array2<f64> = self._create_peak_params(
+            &freqs,
+            &gaussian_params_,
+            &powers_log_fit,
+            &_ap_fit
+        );
 
         // Collect results into the struct
         Results {
@@ -123,16 +143,15 @@ impl SpecParam {
         }
     }
 
-    fn _reset_internal_settings(&mut self) {
-        // Internal settings
-        self._internal_settings._gauss_std_limits =
-            (self.peak_width_limits.0 / 2.0, self.peak_width_limits.1 / 2.0);
-    }
-
-    fn _robust_ap_fit(&mut self, freqs : &Array1<f64>, powers : &Array1<f64>, powers_log : &Array1<f64>) -> Array1<f64>{
+    fn _robust_ap_fit(
+        &mut self,
+        freqs : &Array1<f64>,
+        powers : &Array1<f64>,
+        powers_log : &Array1<f64>
+    ) -> (Array1<f64>, bool) {
 
         // Initial fit
-        let popt = self._simple_ap_fit(freqs, powers, powers_log);
+        let popt = self._simple_ap_fit(freqs, powers, powers_log, 1e-6, 0.25);
 
         let initial_fit : Array1<f64> =
             if self.aperiodic_mode == "linear" {
@@ -143,6 +162,7 @@ impl SpecParam {
 
         // Flatten spectrum
         let mut flat_spec : Array1<f64> = powers_log - initial_fit;
+
         for i in 0..flat_spec.len() {
             if flat_spec[i] < 0.0 {
                 flat_spec[i] = 0.0;
@@ -156,9 +176,12 @@ impl SpecParam {
         let ind : usize = (self._internal_settings._ap_percentile_thresh * flat_spec_v.len() as f64) as usize;
         let perc_thresh : f64 = flat_spec_v[ind];
 
-        // Mask frequency and power arrays
-        let perc_mask = flat_spec.map(|p| p <= &perc_thresh);
+        if perc_thresh == 0.0 {
+            return (popt, true);
+        }
 
+        // Mask frequency and power arrays
+        let perc_mask = flat_spec.map(|p| p < &perc_thresh);
         let mask_size : usize = perc_mask.iter().filter(|&x| *x).count();
 
         let mut freqs_ignore : Array1<f64> = Array1::zeros(mask_size);
@@ -175,11 +198,24 @@ impl SpecParam {
             }
         }
 
-        // Fit flattened spectrum
-        let aperiodic_params = self._simple_ap_fit(&freqs_ignore, &powers_ignore, &powers_ignore_log);
-        aperiodic_params
+        // Fit peak removed spectrum
+        let aperiodic_params = self._simple_ap_fit(
+            &freqs_ignore,
+            &powers_ignore,
+            &powers_ignore_log,
+            1e-12,
+            1.0
+        );
+        (aperiodic_params, true)
     }
-    fn _simple_ap_fit(&mut self, freqs : &Array1<f64>, powers: &Array1<f64>, powers_log: &Array1<f64>) -> Array1<f64> {
+    fn _simple_ap_fit(
+        &mut self,
+        freqs : &Array1<f64>,
+        powers : &Array1<f64>,
+        powers_log : &Array1<f64>,
+        ctol : f64,
+        delta : f64
+    ) -> Array1<f64> {
 
         let aperiodic_params_: Array1<f64> =
             if self.aperiodic_mode == "linear" {
@@ -191,14 +227,18 @@ impl SpecParam {
                         break;
                     };
                 };
-
                 // Exponent
                 let exp_guess : f64 =
                     (powers_log[powers.len()-1] - powers_log[0]).abs() /
                     (freqs[freqs.len()-1].log10() - freqs[0].log10());
                 // Fit
                 let init_params : Array1<f64> = array![exp_guess, off_guess];
-                fit_linear(&freqs, &powers_log, &init_params).unwrap()
+                fit_linear(
+                    &freqs, &powers_log, &init_params,
+                    &self._internal_settings._ap_bounds.0,
+                    &self._internal_settings._ap_bounds.1,
+                    delta
+                ).unwrap()
             } else {
                 // Offset
                 let off_guess : f64 = powers[0];
@@ -215,17 +255,26 @@ impl SpecParam {
                 let exp_guess : f64 = 2.0;
                 // Fit
                 let init_params : Array1<f64> = array![knee_guess, exp_guess, off_guess];
-                fit_lorentzian(&freqs, &powers_log, &init_params).unwrap()
+                fit_lorentzian(
+                    &freqs, &powers_log, &init_params, ctol,
+                    &self._internal_settings._ap_bounds.0,
+                    &self._internal_settings._ap_bounds.1,
+                    delta
+                ).unwrap()
             };
         aperiodic_params_
     }
 
     fn _fit_peaks(&mut self, freqs : &Array1<f64>, flat_iter : &Array1<f64>) -> (Array2<f64>, Array1<f64>) {
 
-        // Acutal max peaks is 100 since stackings ndarray's is a pain
-        let mut guess : Array2<f64> = Array2::zeros((100, 3));
+        // Acutal max peaks is 20 since stackings ndarray's is a pain
+        let mut guess : Array2<f64> = Array2::zeros((20, 3));
+        let mut lower : Array2<f64> = Array2::zeros((20, 3));
+        let mut upper : Array2<f64> = Array2::zeros((20, 3));
+
         let mut i_peak : i64 = 0;
         let mut _flat_iter : Array1<f64> = flat_iter.clone();
+
         while i_peak < self.max_n_peaks {
 
             // Argmax of flattened powers
@@ -238,11 +287,9 @@ impl SpecParam {
                     max_ind = i;
                 }
             }
+
             // Stoping criteria
-            if max_height <= self.peak_threshold * _flat_iter.std(0.0) {
-                println!("{:?}", max_height);
-                println!("{:?}", self.peak_threshold * _flat_iter.std(0.0));
-                println!("Peak height below threshold");
+            if max_height <= (self.peak_threshold * _flat_iter.std(0.0)) {
                 break;
             }
 
@@ -294,13 +341,13 @@ impl SpecParam {
                 } else {
                     let short_side : i64 = le_len.min(ri_len);
                     let fwhm : f64 = short_side as f64 * 2.0 * (freqs[1]-freqs[0]);
-                    fwhm / (2.0 * (2.0 * (2.0_f64.ln()))).sqrt()
+                    fwhm / ((2.0 * (2.0_f64.ln()))).sqrt()
                 };
 
-            if guess_std < self._internal_settings._gauss_std_limits.0 {
-                guess_std = self._internal_settings._gauss_std_limits.0;
-            } else if guess_std > self._internal_settings._gauss_std_limits.1 {
-                guess_std = self._internal_settings._gauss_std_limits.1;
+            if guess_std < self.peak_width_limits.0 {
+                guess_std = self.peak_width_limits.0;
+            } else if guess_std > self.peak_width_limits.1 {
+                guess_std = self.peak_width_limits.1;
             };
 
             // Collect guess parameters and subtract this guess gaussian from the data
@@ -309,14 +356,35 @@ impl SpecParam {
             guess[[_i_peak, 1]] = guess_height;
             guess[[_i_peak, 2]] = guess_std;
 
+            // Bounds
+            let _width : f64 = 2.0 * self._internal_settings._cf_bound * guess_std;
+            lower[[_i_peak, 0]] = guess_freq - _width;
+            lower[[_i_peak, 1]] = 0.0;
+            lower[[_i_peak, 2]] = self.peak_width_limits.0;
+
+            upper[[_i_peak, 0]] =  guess_freq + _width;
+            upper[[_i_peak, 1]] = f64::MAX;
+            upper[[_i_peak, 2]] = self.peak_width_limits.1;
+
             _flat_iter = _flat_iter - peak(&freqs, guess_freq, guess_height, guess_std);
             i_peak = i_peak + 1;
         }
+
+        if i_peak == 0{
+            return (Array2::zeros((1, 3)), Array1::zeros(freqs.len()));
+        }
+
         // Fit the peaks
         let guess_flat = Array1::from_iter(guess.iter().cloned());
         let guess_flat = guess_flat.slice(s![..((i_peak) * 3) as usize]).to_owned();
 
-        let peak_params = fit_gaussian(&freqs, &flat_iter, guess_flat).unwrap();
+        let lower_flat = Array1::from_iter(lower.iter().cloned());
+        let lower_flat = lower_flat.slice(s![..((i_peak) * 3) as usize]).to_owned();
+
+        let upper_flat = Array1::from_iter(upper.iter().cloned());
+        let upper_flat = upper_flat.slice(s![..((i_peak) * 3) as usize]).to_owned();
+
+        let peak_params = fit_gaussian(&freqs, &flat_iter, guess_flat, &lower_flat, &upper_flat).unwrap();
         let n_gaussian : i64 = peak_params.len() as i64 / 3;
 
         let params2 = Array2::from_shape_vec((n_gaussian as usize, 3), peak_params.to_vec()).unwrap();
@@ -329,7 +397,6 @@ impl SpecParam {
             peak_fit = peak_fit + peak_gauss;
         }
         (params2, peak_fit)
-
     }
 
     fn _create_peak_params(&self, freqs : &Array1<f64>, gaus_params: &Array2<f64>, powers_log_fit: &Array1<f64>, _ap_fit: &Array1<f64>) -> Array2<f64> {
