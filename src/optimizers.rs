@@ -217,7 +217,7 @@ pub fn fit_gaussian(
 
     let res = Executor::new(cost, solver)
         .configure(|state| state.param(init_param).max_iters(100))
-        .add_observer(SlogLogger::term(), ObserverMode::Always)
+        //.add_observer(SlogLogger::term(), ObserverMode::Always)
         .run()?;
 
     let param = res.state.get_best_param().unwrap();
