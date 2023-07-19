@@ -256,7 +256,12 @@ pub fn gaussian_loss(
     }
 
     // MSE loss
-    (y_pred - powers).map(|p| p.powi(2)).mean().unwrap()
+    let loss = (y_pred - powers).map(|p| p.powi(2)).mean().unwrap();
+    if loss.is_nan(){
+        loss
+    } else {
+        0.0
+    }
 }
 
 impl CostFunction for Gaussian {
