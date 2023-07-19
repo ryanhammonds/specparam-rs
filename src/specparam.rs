@@ -90,7 +90,7 @@ impl SpecParam {
         let _spectrum_flat = &powers_log - &_ap_fit;
 
         // Fit peaks
-        let (gaussian_params_, _peak_fit) =
+        let (mut gaussian_params_, mut _peak_fit) =
             if fit_peaks ==  true {
                 self._fit_peaks(&freqs, &_spectrum_flat)
             } else{
@@ -98,6 +98,11 @@ impl SpecParam {
                 let _peak_fit : Array1<f64> = Array1::zeros(freqs.len());
                 (gaussian_params_, _peak_fit)
             };
+
+        if self.compute_rsq(&_spectrum_flat, &_peak_fit) <= 0.5 {
+            gaussian_params_ = Array2::zeros((0, 3));
+            _peak_fit = Array1::zeros(freqs.len());
+        }
 
         let _spectrum_peak_rm_log = &powers_log - &_peak_fit;
         let _spectrum_peak_rm = _spectrum_peak_rm_log.map(|p| (10.0_f64).powf(*p));
