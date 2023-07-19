@@ -32,13 +32,16 @@ pub fn noise(f: &Array1<f64>, scale: f64) -> Array1<f64> {
 }
 
 // Bounded functions
-fn apply_bound(mut param : f64, lower : f64, upper : f64) -> f64{
+fn apply_bound(mut param : f64, lower : f64, upper : f64) -> (f64, bool) {
+    let mut out_of_bounds : bool = false;
     if param < lower {
         param = lower;
+        out_of_bounds = true;
     } else if param > upper {
         param = upper;
+        out_of_bounds = true;
     }
-    param
+    (param, out_of_bounds)
 }
 
 pub fn lorentzian_bounded(
@@ -77,9 +80,13 @@ pub fn peak_bounded(
         mut wid : f64,
         lower: &Vec<f64>,
         upper: &Vec<f64>
-    ) -> Array1<f64> {
-    ctr = apply_bound(ctr, lower[0], upper[0]);
-    hgt = apply_bound(hgt, lower[1], upper[1]);
-    wid = apply_bound(wid, lower[2], upper[2]);
-    peak(&f, ctr, hgt, wid)
+    ) -> (Array1<f64>, bool) {
+    let (ctr, ctr_oob) = apply_bound(ctr, lower[0], upper[0]);
+    let (hgt, hgt_oob) = apply_bound(hgt, lower[1], upper[1]);
+    let (wid, wid_oob) = apply_bound(wid, lower[2], upper[2]);
+    if ctr_oob || hgt_oob || wid_oob {
+        (peak(&f, ctr, hgt, wid), true)
+    } else{
+        (peak(&f, ctr, hgt, wid), false)
+    }
 }

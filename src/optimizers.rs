@@ -217,7 +217,7 @@ pub fn fit_gaussian(
 
     let res = Executor::new(cost, solver)
         .configure(|state| state.param(init_param).max_iters(100))
-        //.add_observer(SlogLogger::term(), ObserverMode::Always)
+        .add_observer(SlogLogger::term(), ObserverMode::Always)
         .run()?;
 
     let param = res.state.get_best_param().unwrap();
@@ -240,28 +240,31 @@ pub fn gaussian_loss(
     ) -> f64 {
     let n_gaussian : i64 = param.len() as i64 / 3;
 
-    let mut y_pred : Array1<f64> = peak_bounded(
+    let (mut y_pred, mut out_of_bounds) : (Array1<f64>, bool) = peak_bounded(
         &freqs, param[0], param[1], param[2],
         &vec![lower[0], lower[1], lower[2]],
         &vec![upper[0], upper[1], upper[2]]
     );
 
+    if out_of_bounds {
+        return 0.0;
+    }
+
     for i in 1..n_gaussian{
         let j : usize = (i * 3) as usize;
-        y_pred = y_pred + peak_bounded(
+        let (_y, out_of_bounds) = peak_bounded(
             &freqs, param[j], param[j+1], param[j+2],
             &vec![lower[j], lower[j+1], lower[j+2]],
             &vec![upper[j], upper[j+1], upper[j+2]]
         );
+        y_pred = y_pred + _y;
+        if out_of_bounds {
+            return 0.0;
+        }
     }
 
     // MSE loss
-    let loss = (y_pred - powers).map(|p| p.powi(2)).mean().unwrap();
-    if loss.is_nan(){
-        loss
-    } else {
-        0.0
-    }
+    (y_pred - powers).map(|p| p.powi(2)).mean().unwrap()
 }
 
 impl CostFunction for Gaussian {
