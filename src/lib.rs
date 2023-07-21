@@ -3,14 +3,13 @@ mod gen;
 mod optimizers;
 mod specparam;
 
-use gen::{lorentzian};
-use specparam::{SpecParam as SpecParamRS, Results as ResultsRS};
+use gen::lorentzian;
+use specparam::{Results as ResultsRS, SpecParam as SpecParamRS};
 
 use pyo3::prelude::*;
 
-use numpy::{IntoPyArray, PyArray1, PyArray2};
 use ndarray::{Array1, Array2};
-
+use numpy::{IntoPyArray, PyArray1, PyArray2};
 
 // Importable module
 #[pymodule]
@@ -23,15 +22,15 @@ fn models(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
 // Store results to be accessed from python class
 #[pyclass]
 pub struct Results {
-    pub powers_log : Array1<f64>,
-    pub powers_log_fit : Array1<f64>,
-    pub aperiodic_params_ : Array1<f64>,
-    pub gaussian_params_ : Array2<f64>,
-    pub peak_params_ : Array2<f64>,
-    pub _spectrum_flat : Array1<f64>,
-    pub _spectrum_peak_rm : Array1<f64>,
-    pub _ap_fit : Array1<f64>,
-    pub _peak_fit : Array1<f64>,
+    pub powers_log: Array1<f64>,
+    pub powers_log_fit: Array1<f64>,
+    pub aperiodic_params_: Array1<f64>,
+    pub gaussian_params_: Array2<f64>,
+    pub peak_params_: Array2<f64>,
+    pub _spectrum_flat: Array1<f64>,
+    pub _spectrum_peak_rm: Array1<f64>,
+    pub _ap_fit: Array1<f64>,
+    pub _peak_fit: Array1<f64>,
 }
 
 // Access results as python class attributes
@@ -74,7 +73,7 @@ impl Results {
 // Model class
 #[pyclass]
 struct SpecParam {
-    pub specparam_rs : SpecParamRS
+    pub specparam_rs: SpecParamRS,
 }
 
 #[pymethods]
@@ -89,34 +88,28 @@ impl SpecParam {
         verbose=true
     ))]
     fn new(
-        peak_width_limits : (f64, f64),
-        max_n_peaks : i64,
-        min_peak_height : f64,
-        peak_threshold : f64,
-        aperiodic_mode : &str,
-        verbose : bool
+        peak_width_limits: (f64, f64),
+        max_n_peaks: i64,
+        min_peak_height: f64,
+        peak_threshold: f64,
+        aperiodic_mode: &str,
+        verbose: bool,
     ) -> Self {
-        let mut sp = SpecParamRS{
-            peak_width_limits : peak_width_limits,
-            max_n_peaks : max_n_peaks,
-            min_peak_height : min_peak_height,
-            peak_threshold : peak_threshold,
-            aperiodic_mode : aperiodic_mode.to_string(),
+        let mut sp = SpecParamRS {
+            peak_width_limits: peak_width_limits,
+            max_n_peaks: max_n_peaks,
+            min_peak_height: min_peak_height,
+            peak_threshold: peak_threshold,
+            aperiodic_mode: aperiodic_mode.to_string(),
             verbose: verbose,
             ..Default::default()
         };
 
-        SpecParam{
-            specparam_rs : sp
-        }
+        SpecParam { specparam_rs: sp }
     }
 
     #[pyo3(text_signature = "(freqs, powers)")]
-    fn fit<'a>(
-        &mut self,
-        freqs: &'a PyArray1<f64>,
-        powers: &'a PyArray1<f64>
-    )  -> Results {
+    fn fit<'a>(&mut self, freqs: &'a PyArray1<f64>, powers: &'a PyArray1<f64>) -> Results {
         let f = unsafe { freqs.as_array() };
         let p = unsafe { powers.as_array() };
 
@@ -125,16 +118,16 @@ impl SpecParam {
 
         let _results = self.specparam_rs.fit(&f, &p);
 
-        let results = Results{
-            powers_log : _results.powers_log,
-            powers_log_fit : _results.powers_log_fit,
-            aperiodic_params_ : _results.aperiodic_params_,
-            gaussian_params_ : _results.gaussian_params_,
-            peak_params_ : _results.peak_params_ ,
-            _spectrum_flat : _results._spectrum_flat,
-            _spectrum_peak_rm : _results._spectrum_peak_rm ,
-            _ap_fit : _results._ap_fit,
-            _peak_fit : _results._peak_fit,
+        let results = Results {
+            powers_log: _results.powers_log,
+            powers_log_fit: _results.powers_log_fit,
+            aperiodic_params_: _results.aperiodic_params_,
+            gaussian_params_: _results.gaussian_params_,
+            peak_params_: _results.peak_params_,
+            _spectrum_flat: _results._spectrum_flat,
+            _spectrum_peak_rm: _results._spectrum_peak_rm,
+            _ap_fit: _results._ap_fit,
+            _peak_fit: _results._peak_fit,
         };
         results
     }
