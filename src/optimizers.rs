@@ -262,7 +262,6 @@ pub fn gaussian_loss(
             return 0.0;
         }
     }
-
     // MSE loss
     (y_pred - powers).map(|p| p.powi(2)).mean().unwrap()
 }

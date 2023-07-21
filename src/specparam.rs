@@ -78,7 +78,8 @@ impl SpecParam {
         let powers_log : Array1<f64> = powers.map(|p| p.log10());
 
         // Fit initial aperiodic
-        let (aperiodic_params_, fit_peaks) = self._robust_ap_fit(&freqs, &powers, &powers_log);
+        let (aperiodic_params_, mut fit_peaks) =
+             self._robust_ap_fit(&freqs, &powers, &powers_log);
 
         let _ap_fit : Array1<f64> =
             if self.aperiodic_mode == "linear" {
@@ -99,52 +100,71 @@ impl SpecParam {
                 (gaussian_params_, _peak_fit)
             };
 
-        if self.compute_rsq(&_spectrum_flat, &_peak_fit) <= 0.5 {
+        if self.compute_rsq(&_spectrum_flat, &_peak_fit) <= 0.50 {
             gaussian_params_ = Array2::zeros((0, 3));
             _peak_fit = Array1::zeros(freqs.len());
+            fit_peaks = false;
         }
 
         let _spectrum_peak_rm_log = &powers_log - &_peak_fit;
         let _spectrum_peak_rm = _spectrum_peak_rm_log.map(|p| (10.0_f64).powf(*p));
 
-        // Final aperiodic fit
-        let aperiodic_params_ = self._simple_ap_fit(
-            &freqs,
-            &_spectrum_peak_rm,
-            &_spectrum_peak_rm_log,
-            1e-9,
-            -1.0
-        );
 
-        let _ap_fit : Array1<f64> =
-            if self.aperiodic_mode == "linear" {
-                linear(&freqs, aperiodic_params_[0], aperiodic_params_[1])
-            } else {
-                lorentzian(&freqs, aperiodic_params_[0], aperiodic_params_[1], aperiodic_params_[2])
-            };
-        let _spectrum_flat = &powers_log - &_ap_fit;
+        if fit_peaks {
+            // Peak fitting was successful
 
-        let powers_log_fit = &_peak_fit + &_ap_fit;
+            // Final aperiodic fit
+            let aperiodic_params_ = self._simple_ap_fit(
+                &freqs,
+                &_spectrum_peak_rm,
+                &_spectrum_peak_rm_log,
+                1e-16,
+                -1.0
+            );
 
-        // Peak parameters
-        let peak_params_ : Array2<f64> = self._create_peak_params(
-            &freqs,
-            &gaussian_params_,
-            &powers_log_fit,
-            &_ap_fit
-        );
+            let _ap_fit : Array1<f64> =
+                if self.aperiodic_mode == "linear" {
+                    linear(&freqs, aperiodic_params_[0], aperiodic_params_[1])
+                } else {
+                    lorentzian(&freqs, aperiodic_params_[0], aperiodic_params_[1], aperiodic_params_[2])
+                };
+            let _spectrum_flat = &powers_log - &_ap_fit;
 
-        // Collect results into the struct
-        Results {
-            powers_log : powers_log,
-            powers_log_fit : powers_log_fit,
-            aperiodic_params_ : aperiodic_params_,
-            gaussian_params_ : gaussian_params_,
-            peak_params_ : peak_params_,
-            _spectrum_flat : _spectrum_flat,
-            _spectrum_peak_rm : _spectrum_peak_rm_log,
-            _ap_fit : _ap_fit,
-            _peak_fit : _peak_fit
+            let powers_log_fit = &_peak_fit + &_ap_fit;
+
+            // Peak parameters
+            let peak_params_ : Array2<f64> = self._create_peak_params(
+                &freqs,
+                &gaussian_params_,
+                &powers_log_fit,
+                &_ap_fit
+            );
+            // Collect results into the struct
+            Results {
+                powers_log : powers_log,
+                powers_log_fit : powers_log_fit,
+                aperiodic_params_ : aperiodic_params_,
+                gaussian_params_ : gaussian_params_,
+                peak_params_ : peak_params_,
+                _spectrum_flat : _spectrum_flat,
+                _spectrum_peak_rm : _spectrum_peak_rm_log,
+                _ap_fit : _ap_fit,
+                _peak_fit : _peak_fit
+            }
+        } else{
+            // Peak fitting was skipped
+            let peak_params_: Array2<f64> = Array2::zeros((0, 3));
+            Results {
+                powers_log : powers_log,
+                powers_log_fit : _ap_fit.clone(),
+                aperiodic_params_ : aperiodic_params_,
+                gaussian_params_ : gaussian_params_,
+                peak_params_ : peak_params_,
+                _spectrum_flat : _spectrum_flat,
+                _spectrum_peak_rm : _spectrum_peak_rm_log,
+                _ap_fit : _ap_fit,
+                _peak_fit : _peak_fit
+            }
         }
     }
 
@@ -156,7 +176,10 @@ impl SpecParam {
     ) -> (Array1<f64>, bool) {
 
         // Initial fit
-        let popt = self._simple_ap_fit(freqs, powers, powers_log, 1e-6, 0.25);
+        let popt = self._simple_ap_fit(
+            freqs, powers, powers_log,
+            1e-12, 2.0
+        );
 
         let initial_fit : Array1<f64> =
             if self.aperiodic_mode == "linear" {
@@ -208,8 +231,8 @@ impl SpecParam {
             &freqs_ignore,
             &powers_ignore,
             &powers_ignore_log,
-            1e-12,
-            1.0
+            1e-16,
+            -1.0
         );
         (aperiodic_params, true)
     }
@@ -363,11 +386,12 @@ impl SpecParam {
 
             // Bounds
             let _width : f64 = 2.0 * self._internal_settings._cf_bound * guess_std;
+
             lower[[_i_peak, 0]] = guess_freq - _width;
             lower[[_i_peak, 1]] = 0.0;
             lower[[_i_peak, 2]] = self.peak_width_limits.0;
 
-            upper[[_i_peak, 0]] =  guess_freq + _width;
+            upper[[_i_peak, 0]] = guess_freq + _width;
             upper[[_i_peak, 1]] = f64::MAX;
             upper[[_i_peak, 2]] = self.peak_width_limits.1;
 
@@ -395,13 +419,25 @@ impl SpecParam {
         let params2 = Array2::from_shape_vec((n_gaussian as usize, 3), peak_params.to_vec()).unwrap();
 
         let mut peak_fit : Array1<f64> = Array1::zeros(freqs.len());
-
-        for i in 0..i_peak{
+        let mut oob : bool = false;
+        'outer: for i in 0..i_peak as usize{
+            // Bound check
+            for j in 0..3{
+                if params2[[i, j]] < lower[[i, j]] || params2[[i, j]] > upper[[i, j]] {
+                    oob = true;
+                    break 'outer;
+                }
+            }
+            // Peak summation
             let peak_gauss : Array1<f64> =
                 peak(&freqs, params2[[i as usize, 0]], params2[[i as usize, 1]], params2[[i as usize, 2]]);
             peak_fit = peak_fit + peak_gauss;
+        };
+        if oob {
+            (Array2::zeros((1, 3)), Array1::zeros(freqs.len()))
+        } else{
+            (params2, peak_fit)
         }
-        (params2, peak_fit)
     }
 
     fn _create_peak_params(&self, freqs : &Array1<f64>, gaus_params: &Array2<f64>, powers_log_fit: &Array1<f64>, _ap_fit: &Array1<f64>) -> Array2<f64> {
