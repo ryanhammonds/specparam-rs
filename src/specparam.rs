@@ -1,5 +1,5 @@
 // Spectral fitting
-use crate::gen::{linear, lorentzian, noise, peak};
+use crate::gen::{linear, lorentzian, peak};
 use crate::optimizers::{fit_gaussian, fit_linear, fit_lorentzian};
 use ndarray::{array, s, Array1, Array2};
 

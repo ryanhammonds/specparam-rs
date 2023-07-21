@@ -3,8 +3,7 @@ mod gen;
 mod optimizers;
 mod specparam;
 
-use gen::lorentzian;
-use specparam::{Results as ResultsRS, SpecParam as SpecParamRS};
+use specparam::SpecParam as SpecParamRS;
 
 use pyo3::prelude::*;
 
@@ -95,7 +94,7 @@ impl SpecParam {
         aperiodic_mode: &str,
         verbose: bool,
     ) -> Self {
-        let mut sp = SpecParamRS {
+        let sp = SpecParamRS {
             peak_width_limits: peak_width_limits,
             max_n_peaks: max_n_peaks,
             min_peak_height: min_peak_height,

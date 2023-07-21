@@ -5,9 +5,27 @@ use argmin::core::{CostFunction, Error, Executor, Gradient};
 use argmin::solver::linesearch::{condition::ArmijoCondition, BacktrackingLineSearch};
 use argmin::solver::quasinewton::LBFGS;
 use finitediff::FiniteDiff;
-use ndarray::{array, azip, Array1, Array2};
+use ndarray::Array1;
+use crate::gen::{linear_bounded, lorentzian_bounded, peak_bounded};
 
-use crate::gen::{linear, linear_bounded, lorentzian, lorentzian_bounded, peak, peak_bounded};
+
+// Loss functions
+fn mse(y_pred: &Array1<f64>, y_true: &Array1<f64>) -> f64{
+    // Mean-squared error
+    (y_pred - y_true)
+        .map(|p| p.powi(2))
+        .mean()
+        .unwrap()
+}
+
+fn huber(y_pred: &Array1<f64>, y_true: &Array1<f64>, delta: f64) -> f64{
+    // Psuedo-Huber loss
+    let delta_pow2: f64 = delta.powi(2);
+        (y_pred-y_true)
+            .map(|p| delta_pow2 * ((1.0 + (p / delta).powi(2)).sqrt() - 1.0))
+            .mean()
+            .unwrap()
+}
 
 // Lorentzian fitting
 struct Lorentzian {
@@ -58,19 +76,13 @@ pub fn lorentzian_loss(
     upper: &Array1<f64>,
     delta: f64,
 ) -> f64 {
+    let powers_pred: Array1<f64> = lorentzian_bounded(&freqs, fk, x, b, &lower, &upper);
     if delta <= 0.0 {
         // MSE loss
-        (lorentzian_bounded(&freqs, fk, x, b, &lower, &upper) - powers)
-            .map(|p| p.powi(2))
-            .mean()
-            .unwrap()
+        mse(&powers_pred, &powers)
     } else {
-        // Pseudo-Huber loss
-        let delta_pow2: f64 = delta.powi(2);
-        (lorentzian_bounded(&freqs, fk, x, b, lower, upper) - powers)
-            .map(|p| delta_pow2 * ((1.0 + (p / delta).powi(2)).sqrt() - 1.0))
-            .mean()
-            .unwrap()
+        // Huber loss
+        huber(&powers_pred, &powers, delta)
     }
 }
 
@@ -157,19 +169,13 @@ pub fn linear_loss(
     upper: &Array1<f64>,
     delta: f64,
 ) -> f64 {
+    let powers_pred: Array1<f64> = linear_bounded(&freqs, x, b, lower, upper);
     if delta <= 0.0 {
         // MSE loss
-        (linear_bounded(&freqs, x, b, lower, upper) - powers)
-            .map(|p| p.powi(2))
-            .mean()
-            .unwrap()
+        mse(&powers_pred, &powers)
     } else {
-        // Pseudo-Huber loss
-        let delta_pow2: f64 = delta.powi(2);
-        (linear_bounded(&freqs, x, b, lower, upper) - powers)
-            .map(|p| delta_pow2 * ((1.0 + (p / delta).powi(2)).sqrt() - 1.0))
-            .mean()
-            .unwrap()
+        // Huber loss
+        huber(&powers_pred, &powers, delta)
     }
 }
 
@@ -250,7 +256,7 @@ pub fn gaussian_loss(
 ) -> f64 {
     let n_gaussian: i64 = param.len() as i64 / 3;
 
-    let (mut y_pred, mut out_of_bounds): (Array1<f64>, bool) = peak_bounded(
+    let (mut y_pred, out_of_bounds): (Array1<f64>, bool) = peak_bounded(
         &freqs,
         param[0],
         param[1],
@@ -279,7 +285,7 @@ pub fn gaussian_loss(
         }
     }
     // MSE loss
-    (y_pred - powers).map(|p| p.powi(2)).mean().unwrap()
+    mse(&y_pred, &powers)
 }
 
 impl CostFunction for Gaussian {
