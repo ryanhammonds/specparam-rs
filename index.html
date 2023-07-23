@@ -2,10 +2,69 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Hello wasm-pack!</title>
+    <title>SpecParam</title>
+    <style>
+      body {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+    </style>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js" charset="utf-8"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
   </head>
   <body>
-    <noscript>This page contains webassembly and javascript content, please enable javascript in your browser.</noscript>
+    <pre id="specparam-rs"></pre>
+    <div class="file-upload">
+      <div class="file-select">
+        <div class="file-select-button" id="fileName">PSD </div>
+        <input type="file" id="chooseFile" class="chooseFile">
+      </div>
+    </div>
+
+    <div id="myDiv"></div>
     <script src="./bootstrap.js"></script>
   </body>
 </html>
+
+<!--
+<script>
+  $(document).on('change', '.chooseFile', function(event) {
+    var reader = new FileReader();
+
+    reader.onload = function(event) {
+      var jsonObj = JSON.parse(event.target.result);
+      //console.log(jsonObj.powers);
+
+      // Plot
+      var graphDiv = document.getElementById('myDiv')
+      var trace1 = {
+        x: jsonObj.freqs,
+        y: jsonObj.powers,
+        type: 'scatter'
+      };
+      var layout = {
+        xaxis: {
+          type: 'log',
+          autorange: true
+        },
+        yaxis: {
+          type: 'log',
+          autorange: true
+        }
+      };
+      var data = [trace1];
+      Plotly.newPlot(graphDiv, data, layout);
+      //import("./index.js")
+      //console.log(fill_pointer);
+      //const freqs_ptr = get_vec_pointer(10);
+    }
+    reader.readAsText(event.target.files[0]);
+  });
+</script> -->
