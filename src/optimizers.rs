@@ -1,5 +1,4 @@
 // Parameter optimization
-extern crate blas_src;
 use argmin::core::State;
 use argmin::core::{CostFunction, Error, Executor, Gradient};
 use argmin::solver::linesearch::{condition::ArmijoCondition, BacktrackingLineSearch};

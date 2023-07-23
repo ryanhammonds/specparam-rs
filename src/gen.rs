@@ -1,7 +1,5 @@
 // Simulations
 use ndarray::Array1;
-use rand;
-use rand_distr::{Distribution, Normal};
 use std::f64::consts::E;
 
 // Lorentzian (log10)
@@ -21,15 +19,6 @@ pub fn peak(f: &Array1<f64>, ctr: f64, hgt: f64, wid: f64) -> Array1<f64> {
     hgt * (f).map(|f| E.powf(-(f - ctr).powi(2) / wid.powi(2)))
 }
 
-pub fn noise(f: &Array1<f64>, scale: f64) -> Array1<f64> {
-    let mut rng = rand::thread_rng();
-    let normal = Normal::new(0.0, scale);
-    let mut powers: Array1<f64> = Array1::zeros(f.len());
-    for i in 0..f.len() {
-        powers[i] = normal.expect("REASON").sample(&mut rng);
-    }
-    powers
-}
 
 // Bounded functions
 fn apply_bound(mut param: f64, lower: f64, upper: f64) -> (f64, bool) {
