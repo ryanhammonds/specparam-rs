@@ -32,39 +32,3 @@
     <script src="./bootstrap.js"></script>
   </body>
 </html>
-
-<!--
-<script>
-  $(document).on('change', '.chooseFile', function(event) {
-    var reader = new FileReader();
-
-    reader.onload = function(event) {
-      var jsonObj = JSON.parse(event.target.result);
-      //console.log(jsonObj.powers);
-
-      // Plot
-      var graphDiv = document.getElementById('myDiv')
-      var trace1 = {
-        x: jsonObj.freqs,
-        y: jsonObj.powers,
-        type: 'scatter'
-      };
-      var layout = {
-        xaxis: {
-          type: 'log',
-          autorange: true
-        },
-        yaxis: {
-          type: 'log',
-          autorange: true
-        }
-      };
-      var data = [trace1];
-      Plotly.newPlot(graphDiv, data, layout);
-      //import("./index.js")
-      //console.log(fill_pointer);
-      //const freqs_ptr = get_vec_pointer(10);
-    }
-    reader.readAsText(event.target.files[0]);
-  });
-</script> -->
