@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>SpecParam</title>
+    <style>
+      body {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+    </style>
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js" charset="utf-8"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.4/jquery.min.js"></script>
+  </head>
+  <body>
+    <pre id="specparam-rs"></pre>
+    <div class="file-upload">
+      <div class="file-select">
+        <div class="file-select-button" id="fileName">PSD </div>
+        <input type="file" id="chooseFile" class="chooseFile">
+      </div>
+    </div>
+
+    <div id="myDiv"></div>
+    <script src="./bootstrap.js"></script>
+  </body>
+</html>
