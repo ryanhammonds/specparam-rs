@@ -115,7 +115,7 @@ function get_params(){
 function peOptions(val) {
     let osc_div = document.createElement('div');
 
-    pediv = document.getElementById('pediv');
+    const pediv = document.getElementById('pediv');
     while (pediv.childNodes.length > 4) {
         pediv.removeChild(pediv.lastChild);
     }
@@ -184,11 +184,11 @@ function apOptions(){
             get_params();
         }
 
-        apdiv = document.getElementById('apdiv')
-        while (apdiv.childNodes.length > 2) {
-            apdiv.removeChild(apdiv.lastChild);
+        const ap = document.getElementById('apdiv')
+        while (ap.childNodes.length > 2) {
+            ap.removeChild(ap.lastChild);
         }
-        apdiv.appendChild(linear_div);
+        ap.appendChild(linear_div);
 
     } else if (ap_mode.value == 'Lorentzian') {
         const lorentzian_div = document.createElement('div');
@@ -226,11 +226,11 @@ function apOptions(){
             get_params();
         }
 
-        apdiv = document.getElementById('apdiv')
-        while (apdiv.childNodes.length > 2) {
-            apdiv.removeChild(apdiv.lastChild);
+        const ap = document.getElementById('apdiv')
+        while (ap.childNodes.length > 2) {
+            ap.removeChild(ap.lastChild);
         }
-        apdiv.appendChild(lorentzian_div);
+        ap.appendChild(lorentzian_div);
     }
 
     get_params();
