@@ -8,6 +8,14 @@ module.exports = {
     filename: "bootstrap.js",
   },
   mode: "production",
-  plugins: [new CopyWebpackPlugin({ patterns: ["index.html"] })],
-  experiments: { asyncWebAssembly: true }
+  plugins: [new CopyWebpackPlugin({ patterns: ["index.html", "simulator.html"] })],
+  experiments: { asyncWebAssembly: true },
+  performance: {
+    hints: false,
+    maxEntrypointSize: 512000,
+    maxAssetSize: 512000
+  },
+  devServer: {
+    historyApiFallback: true
+  }
 };
