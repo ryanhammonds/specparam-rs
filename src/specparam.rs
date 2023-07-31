@@ -361,18 +361,21 @@ impl SpecParam {
                 i64::MAX
             };
 
+            let gauss_std_limits : (f64, f64) =
+                (self.peak_width_limits.0 / 2.0, self.peak_width_limits.1 / 2.0);
+
             let mut guess_std: f64 = if le_ind == -1 && ri_ind == -1 {
-                (self.peak_width_limits.0 + self.peak_width_limits.1) / 2.0
+                (gauss_std_limits.0 + gauss_std_limits.1) / 2.0
             } else {
                 let short_side: i64 = le_len.min(ri_len);
                 let fwhm: f64 = short_side as f64 * 2.0 * (freqs[1] - freqs[0]);
-                fwhm / (2.0 * (2.0_f64.ln())).sqrt()
+                fwhm / (2.0 * (2.0 * 2.0_f64.ln())).sqrt()
             };
 
-            if guess_std < self.peak_width_limits.0 {
-                guess_std = self.peak_width_limits.0;
-            } else if guess_std > self.peak_width_limits.1 {
-                guess_std = self.peak_width_limits.1;
+            if guess_std < gauss_std_limits.0 {
+                guess_std = gauss_std_limits.0;
+            } else if guess_std > gauss_std_limits.1 {
+                guess_std = gauss_std_limits.1;
             };
 
             // Collect guess parameters and subtract this guess gaussian from the data
@@ -386,11 +389,11 @@ impl SpecParam {
 
             lower[[_i_peak, 0]] = guess_freq - _width;
             lower[[_i_peak, 1]] = 0.0;
-            lower[[_i_peak, 2]] = self.peak_width_limits.0;
+            lower[[_i_peak, 2]] = gauss_std_limits.0;
 
             upper[[_i_peak, 0]] = guess_freq + _width;
             upper[[_i_peak, 1]] = f64::MAX;
-            upper[[_i_peak, 2]] = self.peak_width_limits.1;
+            upper[[_i_peak, 2]] = gauss_std_limits.1;
 
             _flat_iter = _flat_iter - peak(&freqs, guess_freq, guess_height, guess_std);
             i_peak = i_peak + 1;
@@ -414,7 +417,7 @@ impl SpecParam {
             fit_gaussian(&freqs, &flat_iter, guess_flat, &lower_flat, &upper_flat).unwrap();
         let n_gaussian: i64 = peak_params.len() as i64 / 3;
 
-        let params2 =
+        let mut params2 =
             Array2::from_shape_vec((n_gaussian as usize, 3), peak_params.to_vec()).unwrap();
 
         let mut peak_fit: Array1<f64> = Array1::zeros(freqs.len());
@@ -435,6 +438,8 @@ impl SpecParam {
                 params2[[i as usize, 2]],
             );
             peak_fit = peak_fit + peak_gauss;
+            // Convert from gaussian to peak width
+            params2[[i as usize, 2]] = 2.0 * params2[[i as usize, 2]];
         }
         if oob {
             (Array2::zeros((1, 3)), Array1::zeros(freqs.len()))
