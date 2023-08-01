@@ -54,7 +54,7 @@
 
     /* Style the content */
     .content {
-        width: 60%;
+        width: 700px;
         margin-left: 400px;
         padding-left: 20px;
     }
@@ -122,7 +122,6 @@
 
     <div class="sidenav">
       <h3>Simulation</h3>
-
       <div id="ap">
       <a>
         Aperiodic
@@ -131,6 +130,7 @@
             <option value="" selected="selected">Select an option&hellip;</option>
             <option value="Linear">Linear</option>
             <option value="Lorentzian">Lorentzian</option>
+            <option value="Double Lorentzian">Double Lorentzian</option>
           </select>
         </div>
       </a>
@@ -141,10 +141,26 @@
           Periodic
           <div class="select" id="pediv">
             Number of Oscillations
-            <span id="nosc"></span>
+            <span id="nosc">0</span>
             <input type="range" min="0" max="10" value="0" step="1" class="slider"
                 id="noscin" autocomplete="off">
         </div>
+        </a>
+      </div>
+      <div id="settings">
+        <a>
+            Settings
+
+            <div class="select" id="optdiv">
+                Frequency Resolution
+                <span id="fres">1.0</span>
+                <input type="range" min="0.1" max="1.0" value="1.0" step="0.1" class="slider"
+                    id="fresin" autocomplete="off">
+                Noise Scale
+                <span id="noise">0.01</span>
+                <input type="range" min="0.0" max="0.1" value="0.01" step="0.01" class="slider"
+                    id="noisein" autocomplete="off">
+            </div>
         </a>
       </div>
     </div>
