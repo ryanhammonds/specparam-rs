@@ -11,6 +11,28 @@ pub fn lorentzian(f: &Array1<f64>, fk: f64, x: f64, b: f64) -> Array1<f64> {
     base - f.map(|f| (fkx + f.powf(x)).log10())
 }
 
+pub fn double_lorentzian(
+    f: &Array1<f64>,
+    fk0: f64, x0: f64, b0: f64,
+    fk1: f64, x1: f64, b1: f64
+) -> Array1<f64> {
+    let fk0x0 : f64 = fk0.powf(x0);
+    let fk1x1 : f64 = fk1.powf(x1);
+    let powers : Array1<f64> =
+        f.map(|f|
+            (
+                (b0 * fk0x0 * f.powf(x1)) +
+                (b0 * fk0x0 * fk1x1) +
+                (b1 * fk1x1 * f.powf(x0)) +
+                (b1 * fk1x1 * fk0x0)
+            ).log10()
+            - (f.powf(x0) + fk0x0).log10()
+            - (f.powf(x1) + fk1x1).log10()
+        );
+
+    powers
+}
+
 // Linear, 1/f (log10)
 pub fn linear(f: &Array1<f64>, x: f64, b: f64) -> Array1<f64> {
     f.map(|f| b - (x * (f).log10()))

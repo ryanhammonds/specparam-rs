@@ -5,8 +5,7 @@ use argmin::solver::linesearch::{condition::ArmijoCondition, BacktrackingLineSea
 use argmin::solver::quasinewton::LBFGS;
 use finitediff::FiniteDiff;
 use ndarray::Array1;
-use crate::gen::{linear_bounded, lorentzian_bounded, peak_bounded};
-
+use crate::gen::{linear_bounded, lorentzian_bounded, peak_bounded, double_lorentzian};
 
 // Loss functions
 fn mse(y_pred: &Array1<f64>, y_true: &Array1<f64>) -> f64{
@@ -115,6 +114,92 @@ impl Gradient for Lorentzian {
                 p[2],
                 &self.lower,
                 &self.upper,
+                self.delta,
+            )
+        }))
+    }
+}
+
+// Double Lorentzian
+struct DoubleLorentzian {
+    freqs: Array1<f64>,
+    powers_true: Array1<f64>,
+    delta: f64,
+}
+
+pub fn fit_double_lorentzian(
+    freqs: &Array1<f64>,
+    powers: &Array1<f64>,
+    init_param: &Array1<f64>,
+    ctol: f64,
+    delta: f64
+) -> Result<Array1<f64>, Error> {
+    let cost = DoubleLorentzian {
+        freqs: freqs.clone(),
+        powers_true: powers.clone(),
+        delta: delta,
+    };
+
+    let linesearch = BacktrackingLineSearch::new(ArmijoCondition::new(0.0001)?).rho(0.9)?;
+
+    let solver = LBFGS::new(linesearch, 20)
+        .with_tolerance_grad(1e-6)?
+        .with_tolerance_cost(ctol)?;
+
+    let res = Executor::new(cost, solver)
+        .configure(|state| state.param(init_param.clone()).max_iters(100))
+        .run()?;
+
+    let param = res.state.get_best_param().unwrap();
+    Ok(param.clone())
+}
+
+pub fn double_lorentzian_loss(
+    freqs: &Array1<f64>,
+    powers: &Array1<f64>,
+    fk0: f64,
+    x0: f64,
+    b0: f64,
+    fk1: f64,
+    x1: f64,
+    b1: f64,
+    delta: f64
+) -> f64 {
+    let powers_pred : Array1<f64> = double_lorentzian(&freqs, fk0, x0, b0, fk1, x1, b1);
+    if delta <= 0.0 {
+        // MSE loss
+        mse(&powers_pred, &powers)
+    } else {
+        // Huber loss
+        huber(&powers_pred, &powers, delta)
+    }
+}
+
+
+impl CostFunction for DoubleLorentzian {
+    type Param = Array1<f64>;
+    type Output = f64;
+    fn cost(&self, param: &Self::Param) -> Result<Self::Output, Error> {
+        Ok(double_lorentzian_loss(
+            &self.freqs,
+            &self.powers_true,
+            param[0], param[1], param[2],
+            param[3], param[4], param[5],
+            self.delta,
+        ))
+    }
+}
+
+impl Gradient for DoubleLorentzian {
+    type Param = Array1<f64>;
+    type Gradient = Array1<f64>;
+    fn gradient(&self, param: &Self::Param) -> Result<Self::Gradient, Error> {
+        Ok((*param).forward_diff(&|p| {
+            double_lorentzian_loss(
+                &self.freqs,
+                &self.powers_true,
+                p[0], p[1], p[2],
+                p[3], p[4], p[5],
                 self.delta,
             )
         }))

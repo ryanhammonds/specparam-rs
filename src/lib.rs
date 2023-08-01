@@ -3,7 +3,7 @@ mod gen;
 mod optimizers;
 mod specparam;
 use specparam::SpecParam;
-use ndarray::{Array1, Array2};
+use ndarray::Array1;
 
 use wasm_bindgen::prelude::*;
 use js_sys::Float64Array;
@@ -23,7 +23,7 @@ pub fn simulate(
     max_n_peaks: f64,
     min_peak_height: f64,
     peak_threshold: f64,
-    aperiodic_mode: bool,
+    aperiodic_mode: f64,
     freq_res: f64
 )
     -> js_sys::Array {
@@ -31,13 +31,18 @@ pub fn simulate(
     let ap_params = unsafe { std::slice::from_raw_parts(ap_params, ap_size) };
     let pe_params = unsafe { std::slice::from_raw_parts(pe_params, pe_size) };
 
-    let freqs = Array1::range(1.0, 101.0, freq_res);
+    let freqs = Array1::range(1.0, 201.0, freq_res);
 
     let powers_ap : Array1<f64> =
         if ap_params.len() == 2{
             gen::linear(&freqs, ap_params[0], ap_params[1])
         } else if ap_params.len() == 3{
             gen::lorentzian(&freqs, ap_params[0], ap_params[1], ap_params[2])
+        } else if ap_params.len() == 6{
+            gen::double_lorentzian(
+                &freqs, ap_params[0], ap_params[1], ap_params[2],
+                ap_params[3], ap_params[4], ap_params[5]
+            )
         } else {
             Array1::zeros(freqs.len())
         };
@@ -63,18 +68,18 @@ pub fn simulate(
     let mut _powers : Array1<f64> = Array1::zeros(freqs.len());
     for i in 0..freqs.len(){
         let p = 10.0_f64.powf(powers_pe[i] + powers_ap[i] + powers_noise[i]);
-
         powers[i] = freqs[i];
         powers[freqs.len() + i] = p;
-
         _powers[i] = p;
     };
 
     let _ap_mode: String =
-        if aperiodic_mode {
+        if aperiodic_mode == 0.0 {
             "linear".to_string()
-        } else {
+        } else if aperiodic_mode == 1.0 {
             "lorentzian".to_string()
+        } else {
+            "double_lorentzian".to_string()
         };
 
     let _max_n_peaks = max_n_peaks as i64;
@@ -90,7 +95,7 @@ pub fn simulate(
 
     let res = sp.fit(&freqs, &_powers);
 
-    // Hack to return two arrays
+    // Hack to return multiple arrays
     //   can only return one js_sys::Array at a time,
     //   so we concatenate the arrays and then split them in js
 
@@ -100,24 +105,6 @@ pub fn simulate(
 
     powers.clone().to_vec().into_iter().map(JsValue::from).collect()
 
-}
-
-#[wasm_bindgen]
-pub fn fit(freqs_ptr: *mut f64, powers_ptr: *mut f64, size: usize) -> js_sys::Array {
-    let freqs = unsafe { std::slice::from_raw_parts(freqs_ptr, size) };
-    let powers = unsafe { std::slice::from_raw_parts(powers_ptr, size) };
-
-    let freqs_nd = Array1::from_vec((&freqs).to_vec());
-    let powers_nd = Array1::from_vec((&powers).to_vec());
-
-    let mut sp = SpecParam{
-        max_n_peaks: 1,
-        aperiodic_mode: "linear".to_string(),
-        ..Default::default()
-    };
-
-    let results = sp.fit(&freqs_nd, &powers_nd);
-    results.powers_log_fit.map(|&p| 10.0_f64.powf(p)).to_vec().into_iter().map(JsValue::from).collect()
 }
 
 #[wasm_bindgen]

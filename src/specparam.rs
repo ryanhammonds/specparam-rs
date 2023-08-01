@@ -1,6 +1,6 @@
 // Spectral fitting
-use crate::gen::{linear, lorentzian, peak};
-use crate::optimizers::{fit_gaussian, fit_linear, fit_lorentzian};
+use crate::gen::{linear, lorentzian, double_lorentzian, peak};
+use crate::optimizers::{fit_gaussian, fit_linear, fit_lorentzian, fit_double_lorentzian};
 use ndarray::{array, s, Array1, Array2};
 
 // Structures of parameters, internal settings, and results
@@ -79,12 +79,22 @@ impl SpecParam {
 
         let _ap_fit: Array1<f64> = if self.aperiodic_mode == "linear" {
             linear(&freqs, aperiodic_params_[0], aperiodic_params_[1])
-        } else {
+        } else if self.aperiodic_mode == "lorentzian" {
             lorentzian(
                 &freqs,
                 aperiodic_params_[0],
                 aperiodic_params_[1],
                 aperiodic_params_[2],
+            )
+        } else{
+            double_lorentzian(
+                &freqs,
+                aperiodic_params_[0],
+                aperiodic_params_[1],
+                aperiodic_params_[2],
+                aperiodic_params_[3],
+                aperiodic_params_[4],
+                aperiodic_params_[5],
             )
         };
 
@@ -122,12 +132,22 @@ impl SpecParam {
 
             let _ap_fit: Array1<f64> = if self.aperiodic_mode == "linear" {
                 linear(&freqs, aperiodic_params_[0], aperiodic_params_[1])
-            } else {
+            } else if self.aperiodic_mode == "lorentzian"  {
                 lorentzian(
                     &freqs,
                     aperiodic_params_[0],
                     aperiodic_params_[1],
                     aperiodic_params_[2],
+                )
+            } else {
+                double_lorentzian(
+                    &freqs,
+                    aperiodic_params_[0],
+                    aperiodic_params_[1],
+                    aperiodic_params_[2],
+                    aperiodic_params_[3],
+                    aperiodic_params_[4],
+                    aperiodic_params_[5],
                 )
             };
             let _spectrum_flat = &powers_log - &_ap_fit;
@@ -177,8 +197,13 @@ impl SpecParam {
 
         let initial_fit: Array1<f64> = if self.aperiodic_mode == "linear" {
             linear(&freqs, popt[0], popt[1])
-        } else {
+        } else if self.aperiodic_mode == "lorentzian" {
             lorentzian(&freqs, popt[0], popt[1], popt[2])
+        } else {
+            double_lorentzian(&freqs,
+                popt[0], popt[1], popt[2],
+                popt[3], popt[4], popt[5]
+            )
         };
 
         // Flatten spectrum
@@ -261,7 +286,7 @@ impl SpecParam {
                 delta,
             )
             .unwrap()
-        } else {
+        } else if self.aperiodic_mode == "lorentzian" {
             // Offset
             let off_guess: f64 = powers[0];
             // Knee
@@ -285,6 +310,33 @@ impl SpecParam {
                 &self._internal_settings._ap_bounds.0,
                 &self._internal_settings._ap_bounds.1,
                 delta,
+            )
+            .unwrap()
+        } else {
+            // Offset
+            let off_guess: f64 = powers[0];
+            // Knee
+            let half_max: f64 = powers[0] / 2.0;
+            let mut knee_guess: f64 = 0.0;
+            for i in 0..powers.len() {
+                if powers[i] <= half_max {
+                    knee_guess = freqs[i];
+                    break;
+                }
+            }
+            // Exponent
+            let exp_guess: f64 = 2.0;
+            // Fit
+            let init_params: Array1<f64> = array![
+                knee_guess, exp_guess, off_guess,
+                knee_guess+20.0, exp_guess, off_guess / 2.0
+            ];
+            fit_double_lorentzian(
+                &freqs,
+                &powers_log,
+                &init_params,
+                1e-12,
+                1.0,
             )
             .unwrap()
         };
