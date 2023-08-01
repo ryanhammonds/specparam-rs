@@ -11,7 +11,14 @@ function get_params(){
 
     var ap_params = [];
 
-    if (typeof sliderInputExp !== 'undefined'){
+    if (typeof sliderInputExp0 !== 'undefined'){
+        ap_params.push(parseFloat(sliderInputKnee0.value));
+        ap_params.push(parseFloat(sliderInputExp0.value));
+        ap_params.push(parseFloat(Math.pow(10, sliderInputOffset0.value)));
+        ap_params.push(parseFloat(sliderInputKnee1.value));
+        ap_params.push(parseFloat(sliderInputExp1.value));
+        ap_params.push(parseFloat(Math.pow(10, sliderInputOffset1.value)));
+    } else if (typeof sliderInputExp !== 'undefined'){
 
         if (typeof sliderInputKnee !== 'undefined'){
             ap_params.push(parseFloat(sliderInputKnee.value));
@@ -37,9 +44,6 @@ function get_params(){
         }
     };
 
-    console.log(ap_params);
-    console.log(pe_params);
-
     let ap_params_ptr = get_vec_pointer(ap_params.length);
     let ap_params_arr = get_array(ap_params_ptr, ap_params.length);
     fill_pointer(ap_params_arr, ap_params);
@@ -48,35 +52,36 @@ function get_params(){
     let pe_params_arr = get_array(pe_params_ptr, pe_params.length);
     fill_pointer(pe_params_arr, pe_params);
 
-    // console.log(selectModel.value);
-    // console.log(sliderPeakWidthLower.value);
-    // console.log(sliderPeakWidthUpper.value);
-    // console.log(sliderMaxPeaks.value);
-    // console.log(sliderPeakThresh.value);
+    let f_res = document.getElementById("fresin").value;
 
-    let _ap_mode = false;
+    let _ap_mode = 0.0;
     if (selectModel.value == 'Linear') {
-        _ap_mode = true;
+        _ap_mode = 0.0;
+    } else if (selectModel.value == 'Lorentzian') {
+        _ap_mode = 1.0;
+    } else {
+        _ap_mode = 2.0;
     };
 
-    console.log(sliderMaxPeaks.value);
     let _powers = simulate(
         ap_params_ptr,
         ap_params.length,
         pe_params_ptr,
         pe_params.length,
-        0.1,
+        0.01,
         sliderPeakWidthLower.value,
         sliderPeakWidthUpper.value,
         sliderMaxPeaks.value,
         sliderMinHeight.value,
         sliderPeakThresh.value,
-        _ap_mode
+        _ap_mode,
+        f_res,
     );
 
-    let powers = _powers.slice(0, 100);
-    let freqs = Array.from({length: 100}, (_, i) => i + 1)
-    let powers_fit = _powers.slice(100);
+    let third = _powers.length / 3;
+    let freqs = _powers.slice(0, third);
+    let powers = _powers.slice(third, 2*third);
+    let powers_fit = _powers.slice(2*third, 3*third);
 
     // Plot
     var graphDiv = document.getElementById("graph");
@@ -105,7 +110,7 @@ function get_params(){
         },
         yaxis: {
             type: 'log',
-            range: [-5, 4]
+            //range: [-5, 4]
         }
     };
     var data = [trace1, trace2];
@@ -131,7 +136,7 @@ function peOptions(val) {
                 id="sliderOsc${i}CF" autocomplete="off">
 
                 Height <span id="osc${i}PW"></span>
-                <input type="range" min="0" max="10.0" value="${4.0 / (i+1)}" step="0.1" class="slider"
+                <input type="range" min="0" max="10.0" value="${3.0 / (i+1)}" step="0.1" class="slider"
                 id="sliderOsc${i}PW"  autocomplete="off">
 
                 Bandwith <span id="osc${i}bw"></span>
@@ -231,6 +236,77 @@ function apOptions(){
             ap.removeChild(ap.lastChild);
         }
         ap.appendChild(lorentzian_div);
+    } else {
+        const double_lorentzian_div = document.createElement('div');
+        double_lorentzian_div.innerHTML = `
+        <a>
+            Knee Frequency 0
+            <span id="kneeOutput0">10.0</span>
+            <input type="range" min="1.0" max="100.0" value="10.0" step="0.1" class="slider"
+              id="sliderInputKnee0" autocomplete="off"">
+
+            Exponent 0
+            <span id="expOutput0">3.0</span>
+            <input type="range" min="0.0" max="4.0" value="3.0" step="0.1" class="slider"
+              id="sliderInputExp0" autocomplete="off"">
+
+            Offset 0
+            <span id="offOutput0">0.0</span>
+            <input type="range" min="-2.0" max="2.0" value="0.0" step="0.1" class="slider"
+              id="sliderInputOffset0" autocomplete="off"">
+
+            Knee Frequency 1
+            <span id="kneeOutput1">50.0</span>
+            <input type="range" min="1.0" max="100.0" value="50.0" step="0.1" class="slider"
+            id="sliderInputKnee1" autocomplete="off"">
+
+            Exponent 1
+            <span id="expOutput1">0.5</span>
+            <input type="range" min="0.0" max="4.0" value="0.5" step="0.1" class="slider"
+            id="sliderInputExp1" autocomplete="off"">
+
+            Offset 1
+            <span id="offOutput1">0.0</span>
+            <input type="range" min="-2.0" max="2.0" value="0.0" step="0.1" class="slider"
+            id="sliderInputOffset1" autocomplete="off"">
+        </a>
+        `;
+
+        double_lorentzian_div.children[0].children.sliderInputKnee0.onmouseup = function() {
+            double_lorentzian_div.children[0].children.kneeOutput0.innerHTML = this.value;
+            get_params();
+        }
+
+        double_lorentzian_div.children[0].children.sliderInputExp0.onmouseup = function() {
+            double_lorentzian_div.children[0].children.expOutput0.innerHTML = this.value;
+            get_params();
+        }
+
+        double_lorentzian_div.children[0].children.sliderInputOffset0.onmouseup = function() {
+            double_lorentzian_div.children[0].children.offOutput0.innerHTML = this.value;
+            get_params();
+        }
+
+        double_lorentzian_div.children[0].children.sliderInputKnee1.onmouseup = function() {
+            double_lorentzian_div.children[0].children.kneeOutput1.innerHTML = this.value;
+            get_params();
+        }
+
+        double_lorentzian_div.children[0].children.sliderInputExp1.onmouseup = function() {
+            double_lorentzian_div.children[0].children.expOutput1.innerHTML = this.value;
+            get_params();
+        }
+
+        double_lorentzian_div.children[0].children.sliderInputOffset1.onmouseup = function() {
+            double_lorentzian_div.children[0].children.offOutput1.innerHTML = this.value;
+            get_params();
+        }
+
+        const ap = document.getElementById('apdiv')
+        while (ap.childNodes.length > 2) {
+            ap.removeChild(ap.lastChild);
+        }
+        ap.appendChild(double_lorentzian_div);
     }
 
     get_params();
@@ -243,13 +319,13 @@ function modelOptions(){
     fitdiv.innerHTML = `
         <a>
             Peak Width Lower Bound
-            <span id="peakWidthLower">2.0</span>
-            <input type="range" min="0.0" max="15.0" value="2.0" step="0.1" class="slider"
+            <span id="peakWidthLower">0.0</span>
+            <input type="range" min="0.0" max="15.0" value="0.0" step="0.1" class="slider"
               id="sliderPeakWidthLower" autocomplete="off"">
 
             Peak Width Upper Bound
             <span id="peakWidthUpper">12.0</span>
-            <input type="range" min="0.0" max="15.0" value="12.0" step="0.1" class="slider"
+            <input type="range" min="0.0" max="20.0" value="12.0" step="0.1" class="slider"
               id="sliderPeakWidthUpper" autocomplete="off"">
 
             Max Peaks
@@ -271,6 +347,7 @@ function modelOptions(){
             <select id="selectModel" autocomplete="off">
               <option value="Linear" selected="selected">Linear</option>
               <option value="Lorentzian">Lorentzian</option>
+              <option value="Double Lorentzian">Double Lorentzian</option>
         </a>
         `;
 
@@ -311,44 +388,7 @@ document.getElementById("noscin").onmouseup = function() {
     peOptions(this.value);
 };
 
-
-// Fit spectrum
-// function onReaderLoad(event){
-//     var obj = JSON.parse(event.target.result);
-
-//     // Alloate memory
-//     const size = obj.powers.length;
-//     const freqs_ptr = get_vec_pointer(size);
-//     const freqs_arr = get_array(freqs_ptr, size);
-
-//     const powers_ptr = get_vec_pointer(size);
-//     const powers_arr = get_array(powers_ptr, size);
-
-//     // Move js array into shared memory
-//     //   so that it's accessible from rust
-//     fill_pointer(powers_arr, obj.powers)
-//     fill_pointer(freqs_arr, obj.freqs)
-
-//     // Pass to Rust via WASM
-//     let powers_fit = fit(freqs_ptr, powers_ptr, size);
-// }
-
-// function onChange(event) {
-//     var reader = new FileReader();
-//     reader.onload = onReaderLoad;
-//     reader.readAsText(event.target.files[0]);
-// }
-
-
-//const test = document.getElementById("chooseFile").addEventListener("change", onChange);
-
-// const ap_params_ptr = get_vec_pointer(3);
-// const ap_params_arr = get_array(ap_params_ptr, 3);
-// fill_pointer(ap_params_arr, [10.0, 2.0, 1.0])
-
-// const pe_params_ptr = get_vec_pointer(3);
-// const pe_params_arr = get_array(pe_params_ptr, 3);
-// fill_pointer(pe_params_arr, [10.0, 2.0, 0.2])
-
-
-// let test_sig = simulate(ap_params_ptr, 3, pe_params_ptr, 3, 1.0)
+document.getElementById("fresin").onmouseup = function() {
+    document.getElementById("fres").innerHTML = this.value;
+    get_params();
+};
