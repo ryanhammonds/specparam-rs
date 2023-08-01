@@ -53,6 +53,7 @@ function get_params(){
     fill_pointer(pe_params_arr, pe_params);
 
     let f_res = document.getElementById("fresin").value;
+    let nslv = document.getElementById("noisein").value;
 
     let _ap_mode = 0.0;
     if (selectModel.value == 'Linear') {
@@ -68,7 +69,7 @@ function get_params(){
         ap_params.length,
         pe_params_ptr,
         pe_params.length,
-        0.01,
+        nslv,
         sliderPeakWidthLower.value,
         sliderPeakWidthUpper.value,
         sliderMaxPeaks.value,
@@ -390,5 +391,10 @@ document.getElementById("noscin").onmouseup = function() {
 
 document.getElementById("fresin").onmouseup = function() {
     document.getElementById("fres").innerHTML = this.value;
+    get_params();
+};
+
+document.getElementById("noisein").onmouseup = function() {
+    document.getElementById("noise").innerHTML = this.value;
     get_params();
 };
