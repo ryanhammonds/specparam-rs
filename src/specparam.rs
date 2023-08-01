@@ -101,15 +101,16 @@ impl SpecParam {
         let _spectrum_flat = &powers_log - &_ap_fit;
 
         // Fit peaks
-        let (mut gaussian_params_, mut _peak_fit) = if fit_peaks == true {
-            self._fit_peaks(&freqs, &_spectrum_flat)
-        } else {
-            let gaussian_params_: Array2<f64> = Array2::zeros((0, 3));
-            let _peak_fit: Array1<f64> = Array1::zeros(freqs.len());
-            (gaussian_params_, _peak_fit)
-        };
+        let (mut gaussian_params_, mut _peak_fit) =
+            if fit_peaks && (self.max_n_peaks > 0){
+                self._fit_peaks(&freqs, &_spectrum_flat)
+            } else {
+                let gaussian_params_: Array2<f64> = Array2::zeros((0, 3));
+                let _peak_fit: Array1<f64> = Array1::zeros(freqs.len());
+                (gaussian_params_, _peak_fit)
+            };
 
-        if self.compute_rsq(&_spectrum_flat, &_peak_fit) <= 0.50 {
+        if (self.compute_rsq(&_spectrum_flat, &_peak_fit) < 0.50) || (self.max_n_peaks == 0) {
             gaussian_params_ = Array2::zeros((0, 3));
             _peak_fit = Array1::zeros(freqs.len());
             fit_peaks = false;
@@ -128,6 +129,7 @@ impl SpecParam {
                 &_spectrum_peak_rm_log,
                 1e-16,
                 -1.0,
+                Some(&aperiodic_params_)
             );
 
             let _ap_fit: Array1<f64> = if self.aperiodic_mode == "linear" {
@@ -193,7 +195,7 @@ impl SpecParam {
         powers_log: &Array1<f64>,
     ) -> (Array1<f64>, bool) {
         // Initial fit
-        let popt = self._simple_ap_fit(freqs, powers, powers_log, 1e-12, 2.0);
+        let popt = self._simple_ap_fit(freqs, powers, powers_log, 1e-12, 1.0, None);
 
         let initial_fit: Array1<f64> = if self.aperiodic_mode == "linear" {
             linear(&freqs, popt[0], popt[1])
@@ -252,6 +254,7 @@ impl SpecParam {
             &powers_ignore_log,
             1e-16,
             -1.0,
+            Some(&popt)
         );
         (aperiodic_params, true)
     }
@@ -262,84 +265,110 @@ impl SpecParam {
         powers_log: &Array1<f64>,
         ctol: f64,
         delta: f64,
+        guess : Option<&Array1<f64>>,
     ) -> Array1<f64> {
-        let aperiodic_params_: Array1<f64> = if self.aperiodic_mode == "linear" {
-            // Offset
-            let mut off_guess: f64 = 1.0;
-            for i in 0..freqs.len() {
-                if freqs[i] >= 1.0 && powers_log[i] > 0.0 {
-                    off_guess = powers_log[i];
-                    break;
-                };
-            }
-            // Exponent
-            let exp_guess: f64 = (powers_log[powers.len() - 1] - powers_log[0]).abs()
-                / (freqs[freqs.len() - 1].log10() - freqs[0].log10());
-            // Fit
-            let init_params: Array1<f64> = array![exp_guess, off_guess];
-            fit_linear(
-                &freqs,
-                &powers_log,
-                &init_params,
-                &self._internal_settings._ap_bounds.0,
-                &self._internal_settings._ap_bounds.1,
-                delta,
-            )
-            .unwrap()
-        } else if self.aperiodic_mode == "lorentzian" {
-            // Offset
-            let off_guess: f64 = powers[0];
-            // Knee
-            let half_max: f64 = powers[0] / 2.0;
-            let mut knee_guess: f64 = 0.0;
-            for i in 0..powers.len() {
-                if powers[i] <= half_max {
-                    knee_guess = freqs[i];
-                    break;
+        let aperiodic_params_: Array1<f64> =
+            if self.aperiodic_mode == "linear" && guess.is_none(){
+                // Offset
+                let mut off_guess: f64 = 1.0;
+                for i in 0..freqs.len() {
+                    if freqs[i] >= 1.0 && powers_log[i] > 0.0 {
+                        off_guess = powers_log[i];
+                        break;
+                    };
                 }
-            }
-            // Exponent
-            let exp_guess: f64 = 2.0;
-            // Fit
-            let init_params: Array1<f64> = array![knee_guess, exp_guess, off_guess];
-            fit_lorentzian(
-                &freqs,
-                &powers_log,
-                &init_params,
-                ctol,
-                &self._internal_settings._ap_bounds.0,
-                &self._internal_settings._ap_bounds.1,
-                delta,
-            )
-            .unwrap()
-        } else {
-            // Offset
-            let off_guess: f64 = powers[0];
-            // Knee
-            let half_max: f64 = powers[0] / 2.0;
-            let mut knee_guess: f64 = 0.0;
-            for i in 0..powers.len() {
-                if powers[i] <= half_max {
-                    knee_guess = freqs[i];
-                    break;
+                // Exponent
+                let exp_guess: f64 = (powers_log[powers.len() - 1] - powers_log[0]).abs()
+                    / (freqs[freqs.len() - 1].log10() - freqs[0].log10());
+                // Fit
+                let init_params: Array1<f64> = array![exp_guess, off_guess];
+                fit_linear(
+                    &freqs,
+                    &powers_log,
+                    &init_params,
+                    &self._internal_settings._ap_bounds.0,
+                    &self._internal_settings._ap_bounds.1,
+                    delta
+                ).unwrap()
+            } else if self.aperiodic_mode == "linear" && guess.is_some(){
+                    fit_linear(
+                        &freqs,
+                        &powers_log,
+                        guess.unwrap(),
+                        &self._internal_settings._ap_bounds.0,
+                        &self._internal_settings._ap_bounds.1,
+                        delta
+                    ).unwrap()
+            } else if self.aperiodic_mode == "lorentzian" && guess.is_none(){
+                // Offset
+                let off_guess: f64 = powers[0];
+                // Knee
+                let half_max: f64 = powers[0] / 2.0;
+                let mut knee_guess: f64 = 0.0;
+                for i in 0..powers.len() {
+                    if powers[i] <= half_max {
+                        knee_guess = freqs[i];
+                        break;
+                    }
                 }
-            }
-            // Exponent
-            let exp_guess: f64 = 2.0;
-            // Fit
-            let init_params: Array1<f64> = array![
-                knee_guess, exp_guess, off_guess,
-                knee_guess+20.0, exp_guess, off_guess / 2.0
-            ];
-            fit_double_lorentzian(
-                &freqs,
-                &powers_log,
-                &init_params,
-                1e-12,
-                1.0,
-            )
-            .unwrap()
-        };
+                // Exponent
+                let exp_guess: f64 = 2.0;
+                // Fit
+                let init_params: Array1<f64> = array![knee_guess, exp_guess, off_guess];
+                fit_lorentzian(
+                    &freqs,
+                    &powers_log,
+                    &init_params,
+                    ctol,
+                    &self._internal_settings._ap_bounds.0,
+                    &self._internal_settings._ap_bounds.1,
+                    delta,
+                ).unwrap()
+            } else if self.aperiodic_mode == "lorentzian" && guess.is_some(){
+                fit_lorentzian(
+                    &freqs,
+                    &powers_log,
+                    guess.unwrap(),
+                    ctol,
+                    &self._internal_settings._ap_bounds.0,
+                    &self._internal_settings._ap_bounds.1,
+                    delta
+                ).unwrap()
+            } else if guess.is_none() {
+                // Offset
+                let off_guess: f64 = powers[0];
+                // Knee
+                let half_max: f64 = powers[0] / 2.0;
+                let mut knee_guess: f64 = 0.0;
+                for i in 0..powers.len() {
+                    if powers[i] <= half_max {
+                        knee_guess = freqs[i];
+                        break;
+                    }
+                }
+                // Exponent
+                let exp_guess: f64 = 2.0;
+                // Fit
+                let init_params: Array1<f64> = array![
+                    knee_guess, exp_guess, off_guess,
+                    knee_guess+20.0, exp_guess, off_guess / 2.0
+                ];
+                fit_double_lorentzian(
+                    &freqs,
+                    &powers_log,
+                    &init_params,
+                    1e-12,
+                    1.0,
+                ).unwrap()
+            } else {
+                fit_double_lorentzian(
+                    &freqs,
+                    &powers_log,
+                    guess.unwrap(),
+                    1e-12,
+                    1.0,
+                ).unwrap()
+            };
         aperiodic_params_
     }
 
